@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-highest": "#343537", "inverse-surface": "#e3e2e4", "on-tertiary-container": "#004966", "surface-tint": "#ffb95f", "error": "#ffb4ab", "tertiary-fixed-dim": "#7fd0ff", "on-surface-variant": "#d8c3ad", "on-tertiary-fixed": "#001e2d", "primary": "#ffc174", "on-secondary": "#003824", "on-primary": "#472a00", "surface-dim": "#121315", "tertiary-fixed": "#c5e7ff", "on-tertiary": "#00344a", "on-error": "#690005", "primary-container": "#f59e0b", "on-error-container": "#ffdad6", "on-primary-container": "#613b00", "primary-fixed-dim": "#ffb95f", "surface-bright": "#38393b", "surface-container-high": "#292a2c", "surface-container-lowest": "#0d0e10", "tertiary-container": "#1abdff", "outline": "#a08e7a", "on-primary-fixed-variant": "#653e00", "surface-container-low": "#1b1c1e", "secondary-fixed-dim": "#4edea3", "surface-container": "#1f2022", "inverse-on-surface": "#303033", "outline-variant": "#534434", "on-secondary-container": "#00311f", "background": "#121315", "tertiary": "#8fd5ff", "inverse-primary": "#855300", "primary-fixed": "#ffddb8", "error-container": "#93000a", "surface-variant": "#343537", "secondary-fixed": "#6ffbbe", "on-background": "#e3e2e4", "on-primary-fixed": "#2a1700", "secondary-container": "#00a572", "secondary": "#4edea3", "surface": "#121315", "on-tertiary-fixed-variant": "#004c6a", "on-surface": "#e3e2e4", "on-secondary-fixed-variant": "#005236", "on-secondary-fixed": "#002113" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xs": "0.5rem", "max-width-interface": "480px", "gutter-mobile": "1rem", "space-lg": "1.5rem", "space-3xl": "4rem", "space-sm": "0.75rem", "space-xl": "2rem", "gutter-desktop": "1.5rem", "space-2xl": "3rem", "space-md": "1rem", "space-2xs": "0.25rem" }, "fontFamily": { "label-caps": ["JetBrains Mono"], "body-lg": ["Plus Jakarta Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "body-md": ["Plus Jakarta Sans"], "display-lg": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "label-mono": ["JetBrains Mono"], "body-sm": ["Plus Jakarta Sans"] }, "fontSize": { "label-caps": ["11px", { "lineHeight": "14px", "letterSpacing": "0.08em", "fontWeight": "500" }], "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "400" }], "display-lg-mobile": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.025em", "fontWeight": "600" }], "headline-sm": ["18px", { "lineHeight": "26px", "letterSpacing": "-0.015em", "fontWeight": "500" }], "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }], "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.03em", "fontWeight": "600" }], "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "label-mono": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "400" }], "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.005em", "fontWeight": "400" }] } } } }</script><style>@layer base { html, body { margin: 0; padding: 0; min-height: 100%; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } } ::-webkit-scrollbar { display: none; }</style></head><body class="bg-surface text-on-surface font-body-md text-body-md antialiased flex flex-col min-h-screen selection:bg-primary-container selection:text-on-primary-container"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)]"><div class="h-16 px-gutter-mobile flex items-center justify-between max-w-max-width-interface mx-auto"><div class="flex items-center gap-space-xs"><button aria-label="Back" class="w-11 h-11 flex items-center justify-center -ml-2 rounded-full text-on-surface hover:bg-surface-container-high transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[20px]">arrow_back_ios_new</span></button><img alt="Walkie App Icon" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1VWYaNRVgeMjzQHvFTk6QZ4RBcXCUp985XdvR7EiqQ7f83mWatoj2QQXpLlFLTDC4zi9o5ueUVTv3c-pf0JVEPwnY3SzkFBPawBzJMb_xO-ZAQK3s13BiROfgKxEKKRE-D67ATm6ZyDXqijsXsRkA-rmKuskm38SpdvR2pj9OOmhPNMALP_OfZbQJ1Hip1UL05evl4elbdM-8hitLnXi5JKbGclTK1R6x0jgHRvObqwZA0wzM8tjmWc4jM"/><h1 class="font-headline-sm text-headline-sm text-on-surface tracking-tight leading-none truncate max-w-[190px]">Talk</h1></div><div class="flex items-center gap-space-xs"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-1 ring-outline-variant/30" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClVu2aWY8mDDrFFdG1ivVdQ5ay-LmZgMkE5H_1kTv-NCs8hKYViJh2mwG7Tsz-MfJgky9918F1AsNPq0uaGb9ofVH6Gt8r4jLVEom2UQH8RTfioHJhQdxDB5xoExi8eKoenZOoLaUjJ5F8WMG__M-XVqxl4FwPMW1klcnkIRjLUQqdrZLqlZ2j_deMU3vbHbKykQmElhSy2La6WkGBh5l1mYvqHgS8Q_M8X0JeTAn0dY_Fdbv4359o"/></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-space-xl bg-surface max-w-max-width-interface mx-auto px-gutter-mobile"><div class="flex flex-col w-full gap-space-md select-none pb-space-sm">
+<!-- Channel Metadata Bar -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex items-center justify-between shadow-md">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-primary text-[20px] shrink-0" style="font-variation-settings: 'FILL' 1;">sensors</span>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Night Owls Studio</span>
+<span class="bg-surface-container-highest text-primary font-label-caps text-label-caps px-space-xs py-0.5 rounded-full uppercase tracking-wider shrink-0">CH 04</span>
+</div>
+<div class="flex items-center gap-space-2xs text-on-surface-variant font-label-mono text-label-mono">
+<span>High-Fidelity 48kHz</span>
+<span>•</span>
+<span class="text-secondary flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse inline-block"></span>
+            Synced
+          </span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-high px-space-xs py-1 rounded-lg flex items-center gap-1 text-on-surface-variant font-label-mono text-label-mono shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-primary text-[14px]">graphic_eq</span>
+<span>0.8 dBFS</span>
+</div>
+</div>
+<!-- Member Presence Strip -->
+<div class="flex flex-col gap-space-2xs">
+<div class="flex items-center justify-between px-space-2xs">
+<span class="text-on-surface-variant font-label-caps text-label-caps uppercase tracking-wider">Active Channel Members</span>
+<span class="text-primary font-label-mono text-label-mono">5 Active</span>
+</div>
+<div class="flex items-center gap-space-xs overflow-x-auto pb-1 pt-1 no-scrollbar">
+<!-- Speaking: Marcus Chen -->
+<div class="bg-surface-container-high text-on-surface rounded-full pl-1 pr-3 py-1 flex items-center gap-space-xs shrink-0 shadow-sm">
+<div class="relative w-8 h-8 rounded-full overflow-hidden bg-primary-container p-0.5">
+<img class="w-full h-full object-cover rounded-full" data-alt="Close up studio portrait of Marcus Chen wearing modern acoustic sound designer headphones, dark background warm soft amber directional light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJxspIM5NwuQsODbgkP12sfH2xjozlxzVz8MdRilgLXhF3jHI-RLoU0rwZu-TPcQfVp77Mgr7VWs1vkKkxMoP9A4zDYmfIbPlguf6cHhBih2-dVl6tG5G4GQNJ6r0AE5RdtWsChKpOVyA5SWcAN-t7yWS7pDhep54LPSkbUlJK9_nlLKewhpo5w2nATgVLIc0utbnucSsaY2brVK4f0AeAb8MnrNKJOuuKWzhzsfjoAd_GT50FoMcj"/>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1">
+<span class="font-body-sm text-body-sm font-semibold text-primary truncate max-w-[80px]">Marcus</span>
+<span class="material-symbols-outlined text-primary text-[14px] animate-pulse">volume_up</span>
+</div>
+<span class="text-primary font-label-caps text-label-caps uppercase">Speaking</span>
+</div>
+</div>
+<!-- Online: Elena Vance -->
+<div class="bg-surface-container-low text-on-surface rounded-full pl-1 pr-3 py-1 flex items-center gap-space-xs shrink-0">
+<div class="relative w-8 h-8 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover rounded-full" data-alt="Professional photo of Elena Vance, creative director with sleek dark hair, lit by quiet emerald monitor glow in dark audio control room" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfQB8DXs36RhKjbnI77PzVeGOeanKCeVtuQBpmByf2xBRnFS7dokSaJLYeoUPxdw-jiOeYCgA-JUjI_PuCYFn8Dz4JhhqEeKky8A-6UKa3pDHwC_N3cUuqFBwUzwblSao8-MOOoiM48Aoq1IPpvMxvEMdx5bY_PJ9z99DUZ_Rm9BZkjL6F8e7iHLIko-TO1PJ_oJ9Ga9MX4SDhoYdtBFuLz7xi-L0zOQFadYmUjCPLKYHrqz-fclrw"/>
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-secondary rounded-full shadow-sm"></span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-sm text-body-sm text-on-surface truncate max-w-[70px]">Elena V.</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps uppercase">Listening</span>
+</div>
+</div>
+<!-- Online: David K. -->
+<div class="bg-surface-container-low text-on-surface rounded-full pl-1 pr-3 py-1 flex items-center gap-space-xs shrink-0">
+<div class="relative w-8 h-8 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover rounded-full" data-alt="Portrait of David K., audio engineer in dark grey minimalist outfit, subtle teal and slate rim lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJSNf8tIXucNvpvtEad7Cqfn2_7ELnkMkY5T9vXSzAWa9XRw47INpNLvAdSS3Di_vXaihMUr7Ylj51grsjwYCN2Hsx6Jc9ph2Sd0aPoVNkZd2eKMfvNfHnu1EPhBlqwdWu5d7knWIL_NB-pwjtfmNMK0eiX-cIyAfWXHW5vgflUMw4SA-bWzQKIPbILtvjhhnnZyPGGcDOth_C6PlB85xhVnLR_tcGud5yGW2xqeDbzoIX6sLkaiXS"/>
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-secondary rounded-full shadow-sm"></span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-sm text-body-sm text-on-surface truncate max-w-[65px]">David K.</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps uppercase">Idle</span>
+</div>
+</div>
+<!-- Muted: Sarah Miller -->
+<div class="bg-surface-container-low text-on-surface-variant rounded-full pl-1 pr-3 py-1 flex items-center gap-space-xs shrink-0 opacity-75">
+<div class="relative w-8 h-8 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover rounded-full grayscale" data-alt="Muted profile picture of Sarah Miller in minimal studio atmosphere, dark ambient slate lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBqyxK7omaRG0OWozaya-0EXTJlkNrKUf4ZshyWXWiUynO1KRe0126YJSYTsLtlLoe5tYUT_0_B59aircQdRHBSYQaXcazBxwdbntyTAITYdpHzi7YJMi6DWKE4iYn5YPGdwCDmnFXNetRp_9bxe1sHOa8waF0QJipcx0srsXznMDmuPtU8it2t7Olr0o11jNn0TMz4axgrzTos9dsfm64kpEZxZOgWTuy6OeBbulWnccS62kK40LVs"/>
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-surface-container-highest rounded-full flex items-center justify-center">
+<span class="w-1.5 h-1.5 bg-error rounded-full"></span>
+</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate max-w-[65px]">Sarah M.</span>
+<span class="text-on-surface-variant font-label-caps text-label-caps uppercase">Muted</span>
+</div>
+</div>
+<!-- +2 More Badge -->
+<div class="bg-surface-container-highest text-on-surface px-space-sm py-2 rounded-full flex items-center gap-1 shrink-0">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">group</span>
+<span class="font-label-mono text-label-mono text-on-surface font-semibold">+2</span>
+</div>
+</div>
+</div>
+<!-- Live Incoming Transmission Deck -->
+<div class="bg-surface-container rounded-xl p-space-md shadow-xl flex flex-col gap-space-sm relative overflow-hidden">
+<!-- Subtle Amber Radiance Scrim -->
+<div class="absolute -top-16 -right-16 w-36 h-36 bg-primary-container/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex items-center justify-between relative z-10">
+<div class="flex items-center gap-space-xs">
+<span class="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-label-caps text-label-caps uppercase tracking-wider">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+          Live Stream
+        </span>
+<span class="text-on-surface-variant font-label-mono text-label-mono">Wideband Opus</span>
+</div>
+<div class="flex items-center gap-1 text-primary font-label-mono text-label-mono bg-surface-container-highest px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px]">timer</span>
+<span id="speakerTimer">00:04</span>
+</div>
+</div>
+<!-- Active Speaker Information & Live Audio Visualizer -->
+<div class="flex items-center gap-space-md relative z-10">
+<!-- Portrait with Ripple Rings -->
+<div class="relative flex items-center justify-center w-16 h-16 shrink-0">
+<div class="absolute inset-0 rounded-full bg-primary-container/20 animate-ping"></div>
+<div class="absolute -inset-1.5 rounded-full bg-primary/10 animate-pulse"></div>
+<div class="w-14 h-14 rounded-full overflow-hidden relative shadow-lg">
+<img class="w-full h-full object-cover" data-alt="Portrait of Marcus Chen, voice broadcast engineer speaking into a broadcast microphone in a dim studio with acoustic paneling in the background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbwGYhHjiX_jt2JKWAKGq5KVjcPqOqM5FIR9PCVr1LGNApMkSEJjIwtc3dG8OOjND64JuNN6q0xeBiExQx3cOgZD8U5UGA8PhQimkMBN9Dz7zFNSlVGR3s25k6muciAcWoafamiPqBQQEuKI0ivNFXZcvOeBapFEiaXrUMea9sVVc7TftDiCv7tCpt_tge2LTWwyfbUEgn-Y-vE6lFnKg8KFbi4-kXAaPfTxCnrT5zwHS2BCczgkfX"/>
+</div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Marcus Chen</span>
+<span class="font-label-mono text-label-mono text-primary">-14 dB</span>
+</div>
+<span class="text-on-surface-variant font-body-sm text-body-sm truncate">"Checking monitor 4 gain level..."</span>
+<!-- Live Acoustic Waveform Graph -->
+<div class="flex items-end gap-1 h-6 mt-space-2xs w-full">
+<div class="flex-1 bg-primary/40 rounded-full h-2 animate-pulse"></div>
+<div class="flex-1 bg-primary rounded-full h-4"></div>
+<div class="flex-1 bg-primary rounded-full h-5 animate-pulse"></div>
+<div class="flex-1 bg-primary-container rounded-full h-6"></div>
+<div class="flex-1 bg-primary rounded-full h-4"></div>
+<div class="flex-1 bg-primary rounded-full h-5 animate-pulse"></div>
+<div class="flex-1 bg-primary-container rounded-full h-3"></div>
+<div class="flex-1 bg-primary/60 rounded-full h-2"></div>
+<div class="flex-1 bg-primary/30 rounded-full h-1.5"></div>
+<div class="flex-1 bg-primary/40 rounded-full h-3"></div>
+<div class="flex-1 bg-primary rounded-full h-5"></div>
+<div class="flex-1 bg-primary-container rounded-full h-4 animate-pulse"></div>
+<div class="flex-1 bg-primary/50 rounded-full h-2"></div>
+<div class="flex-1 bg-primary/30 rounded-full h-1"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hero Push-To-Talk Section -->
+<div class="flex flex-col items-center justify-center my-auto py-space-sm relative">
+<!-- Ambient Radial Halo for PTT (Transitions on Press) -->
+<div class="absolute w-56 h-56 rounded-full bg-primary-container/5 blur-3xl transition-all duration-300 pointer-events-none scale-90 opacity-40" id="pttGlow"></div>
+<!-- Outer Tactile Bezel Structure -->
+<div class="relative p-2.5 rounded-full bg-surface-container-low shadow-2xl flex items-center justify-center">
+<!-- Mid Ground Tone Ring -->
+<div class="p-2 rounded-full bg-surface-container">
+<!-- Main Interactive Button -->
+<button aria-label="Push to Talk" class="w-44 h-44 rounded-full bg-surface-container-high text-on-surface flex flex-col items-center justify-center shadow-xl active:scale-95 transition-all duration-150 relative overflow-hidden group touch-none cursor-pointer focus:outline-none" id="pttButton" style="-webkit-tap-highlight-color: transparent;">
+<!-- Concentric Inner Depth Gradient Overlay -->
+<div class="absolute inset-0 bg-gradient-to-b from-surface-bright/20 via-transparent to-surface-container-lowest/60 rounded-full pointer-events-none"></div>
+<!-- Transmit Wave Dynamic Visual Pill -->
+<div class="absolute inset-0 bg-primary-container/10 rounded-full scale-50 opacity-0 transition-all duration-200 pointer-events-none" id="pttInnerRipples"></div>
+<!-- Central Icon & Graphic Core -->
+<div class="relative z-10 flex flex-col items-center justify-center gap-1.5">
+<div class="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center shadow-md transition-colors duration-200" id="pttIconCircle">
+<span class="material-symbols-outlined text-on-surface-variant text-[32px] transition-colors duration-200" id="pttIcon">mic</span>
+</div>
+<span class="font-headline-sm text-headline-sm tracking-tight text-on-surface font-semibold text-center leading-none mt-1" id="pttMainLabel">HOLD</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-center leading-none" id="pttSubLabel">TO TALK</span>
+</div>
+</button>
+</div>
+</div>
+<!-- Tactical Instruction Caption -->
+<div class="mt-space-sm flex flex-col items-center text-center gap-1">
+<span class="font-body-sm text-body-sm text-on-surface-variant" id="statusInstruction">Release trigger anytime to listen</span>
+<!-- Telemetry Info Pill -->
+<div class="bg-surface-container-low px-space-sm py-1 rounded-full flex items-center gap-space-xs shadow-sm">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="text-on-surface font-label-mono text-label-mono">Encrypted P2P Voice</span>
+<span class="text-on-surface-variant font-label-mono text-label-mono">•</span>
+<span class="text-secondary font-label-mono text-label-mono">Latency &lt;22ms</span>
+</div>
+</div>
+</div>
+<!-- Quick Mic / Acoustic Hardware Utility Dock -->
+<div class="bg-surface-container-high rounded-xl p-space-xs grid grid-cols-3 gap-space-xs shadow-lg">
+<!-- Mic Mute Button -->
+<button class="bg-surface-container-low text-on-surface hover:bg-surface-container py-space-sm px-space-xs rounded-lg flex flex-col items-center justify-center gap-1 transition-colors active:scale-95" id="muteToggle">
+<span class="material-symbols-outlined text-[20px] text-on-surface" id="muteIcon">mic</span>
+<span class="font-label-caps text-label-caps uppercase text-on-surface" id="muteLabel">Mute</span>
+</button>
+<!-- Speaker / Earpiece Toggle -->
+<button class="bg-surface-container-low text-on-surface hover:bg-surface-container py-space-sm px-space-xs rounded-lg flex flex-col items-center justify-center gap-1 transition-colors active:scale-95" id="outputToggle">
+<span class="material-symbols-outlined text-[20px] text-primary" id="outputIcon" style="font-variation-settings: 'FILL' 1;">volume_up</span>
+<span class="font-label-caps text-label-caps uppercase text-primary" id="outputLabel">Speaker</span>
+</button>
+<!-- Hands-Free Latch Button -->
+<button class="bg-surface-container-low text-on-surface-variant hover:bg-surface-container py-space-sm px-space-xs rounded-lg flex flex-col items-center justify-center gap-1 transition-colors active:scale-95" id="latchToggle">
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant" id="latchIcon">lock_open</span>
+<span class="font-label-caps text-label-caps uppercase text-on-surface-variant" id="latchLabel">Latch Off</span>
+</button>
+</div>
+</div>
+<script>
+  (function() {
+    const pttButton = document.getElementById('pttButton');
+    const pttGlow = document.getElementById('pttGlow');
+    const pttInnerRipples = document.getElementById('pttInnerRipples');
+    const pttIconCircle = document.getElementById('pttIconCircle');
+    const pttIcon = document.getElementById('pttIcon');
+    const pttMainLabel = document.getElementById('pttMainLabel');
+    const pttSubLabel = document.getElementById('pttSubLabel');
+    const statusInstruction = document.getElementById('statusInstruction');
+    const speakerTimer = document.getElementById('speakerTimer');
+
+    let isTransmitting = false;
+    let timerInterval = null;
+    let timerSeconds = 4;
+
+    // Incremental timer simulation for active speaker
+    setInterval(function() {
+      if (!isTransmitting) {
+        timerSeconds++;
+        const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+        const secs = String(timerSeconds % 60).padStart(2, '0');
+        speakerTimer.textContent = mins + ':' + secs;
+      }
+    }, 1000);
+
+    function startTransmission(e) {
+      if (e) e.preventDefault();
+      if (isTransmitting) return;
+      isTransmitting = true;
+
+      // PTT Active State - Amber Radiant Warmth
+      pttGlow.classList.remove('opacity-40', 'scale-90');
+      pttGlow.classList.add('opacity-100', 'scale-125', 'bg-primary-container/25');
+
+      pttInnerRipples.classList.remove('opacity-0', 'scale-50');
+      pttInnerRipples.classList.add('opacity-100', 'scale-100');
+
+      pttButton.classList.remove('bg-surface-container-high');
+      pttButton.classList.add('bg-surface-container-highest');
+
+      pttIconCircle.classList.remove('bg-surface-container');
+      pttIconCircle.classList.add('bg-primary');
+
+      pttIcon.classList.remove('text-on-surface-variant');
+      pttIcon.classList.add('text-on-primary');
+      pttIcon.textContent = 'podcasts';
+
+      pttMainLabel.textContent = 'LIVE';
+      pttMainLabel.classList.add('text-primary');
+
+      pttSubLabel.textContent = 'TRANSMITTING';
+      pttSubLabel.classList.remove('text-on-surface-variant');
+      pttSubLabel.classList.add('text-primary');
+
+      statusInstruction.textContent = 'Channel broadcast active • Audio flowing';
+      statusInstruction.classList.add('text-primary');
+    }
+
+    function stopTransmission(e) {
+      if (e) e.preventDefault();
+      if (!isTransmitting) return;
+      isTransmitting = false;
+
+      // Revert to Resting Listening State
+      pttGlow.classList.remove('opacity-100', 'scale-125', 'bg-primary-container/25');
+      pttGlow.classList.add('opacity-40', 'scale-90');
+
+      pttInnerRipples.classList.remove('opacity-100', 'scale-100');
+      pttInnerRipples.classList.add('opacity-0', 'scale-50');
+
+      pttButton.classList.remove('bg-surface-container-highest');
+      pttButton.classList.add('bg-surface-container-high');
+
+      pttIconCircle.classList.remove('bg-primary');
+      pttIconCircle.classList.add('bg-surface-container');
+
+      pttIcon.classList.remove('text-on-primary');
+      pttIcon.classList.add('text-on-surface-variant');
+      pttIcon.textContent = 'mic';
+
+      pttMainLabel.textContent = 'HOLD';
+      pttMainLabel.classList.remove('text-primary');
+
+      pttSubLabel.textContent = 'TO TALK';
+      pttSubLabel.classList.remove('text-primary');
+      pttSubLabel.classList.add('text-on-surface-variant');
+
+      statusInstruction.textContent = 'Release trigger anytime to listen';
+      statusInstruction.classList.remove('text-primary');
+    }
+
+    // Touch and pointer triggers for mobile responsiveness
+    pttButton.addEventListener('pointerdown', startTransmission);
+    window.addEventListener('pointerup', stopTransmission);
+    window.addEventListener('pointercancel', stopTransmission);
+
+    // Mute mic toggle
+    const muteToggle = document.getElementById('muteToggle');
+    const muteIcon = document.getElementById('muteIcon');
+    const muteLabel = document.getElementById('muteLabel');
+    let isMuted = false;
+
+    muteToggle.addEventListener('click', function() {
+      isMuted = !isMuted;
+      if (isMuted) {
+        muteIcon.textContent = 'mic_off';
+        muteIcon.classList.add('text-error');
+        muteLabel.textContent = 'Muted';
+        muteLabel.classList.add('text-error');
+      } else {
+        muteIcon.textContent = 'mic';
+        muteIcon.classList.remove('text-error');
+        muteLabel.textContent = 'Mute';
+        muteLabel.classList.remove('text-error');
+      }
+    });
+
+    // Speaker / Earpiece Toggle
+    const outputToggle = document.getElementById('outputToggle');
+    const outputIcon = document.getElementById('outputIcon');
+    const outputLabel = document.getElementById('outputLabel');
+    let isSpeaker = true;
+
+    outputToggle.addEventListener('click', function() {
+      isSpeaker = !isSpeaker;
+      if (isSpeaker) {
+        outputIcon.textContent = 'volume_up';
+        outputLabel.textContent = 'Speaker';
+        outputIcon.classList.add('text-primary');
+        outputLabel.classList.add('text-primary');
+      } else {
+        outputIcon.textContent = 'headphones';
+        outputLabel.textContent = 'Earphone';
+        outputIcon.classList.remove('text-primary');
+        outputLabel.classList.remove('text-primary');
+      }
+    });
+
+    // Hands-Free Latch Toggle
+    const latchToggle = document.getElementById('latchToggle');
+    const latchIcon = document.getElementById('latchIcon');
+    const latchLabel = document.getElementById('latchLabel');
+    let isLatched = false;
+
+    latchToggle.addEventListener('click', function() {
+      isLatched = !isLatched;
+      if (isLatched) {
+        latchIcon.textContent = 'lock';
+        latchIcon.classList.add('text-secondary');
+        latchLabel.textContent = 'Latched';
+        latchLabel.classList.add('text-secondary');
+        startTransmission();
+      } else {
+        latchIcon.textContent = 'lock_open';
+        latchIcon.classList.remove('text-secondary');
+        latchLabel.textContent = 'Latch Off';
+        latchLabel.classList.remove('text-secondary');
+        stopTransmission();
+      }
+    });
+  })();
+</script></main></body></html>

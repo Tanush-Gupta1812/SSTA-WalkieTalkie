@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-highest": "#343537", "inverse-surface": "#e3e2e4", "on-tertiary-container": "#004966", "surface-tint": "#ffb95f", "error": "#ffb4ab", "tertiary-fixed-dim": "#7fd0ff", "on-surface-variant": "#d8c3ad", "on-tertiary-fixed": "#001e2d", "primary": "#ffc174", "on-secondary": "#003824", "on-primary": "#472a00", "surface-dim": "#121315", "tertiary-fixed": "#c5e7ff", "on-tertiary": "#00344a", "on-error": "#690005", "primary-container": "#f59e0b", "on-error-container": "#ffdad6", "on-primary-container": "#613b00", "primary-fixed-dim": "#ffb95f", "surface-bright": "#38393b", "surface-container-high": "#292a2c", "surface-container-lowest": "#0d0e10", "tertiary-container": "#1abdff", "outline": "#a08e7a", "on-primary-fixed-variant": "#653e00", "surface-container-low": "#1b1c1e", "secondary-fixed-dim": "#4edea3", "surface-container": "#1f2022", "inverse-on-surface": "#303033", "outline-variant": "#534434", "on-secondary-container": "#00311f", "background": "#121315", "tertiary": "#8fd5ff", "inverse-primary": "#855300", "primary-fixed": "#ffddb8", "error-container": "#93000a", "surface-variant": "#343537", "secondary-fixed": "#6ffbbe", "on-background": "#e3e2e4", "on-primary-fixed": "#2a1700", "secondary-container": "#00a572", "secondary": "#4edea3", "surface": "#121315", "on-tertiary-fixed-variant": "#004c6a", "on-surface": "#e3e2e4", "on-secondary-fixed-variant": "#005236", "on-secondary-fixed": "#002113" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xs": "0.5rem", "max-width-interface": "480px", "gutter-mobile": "1rem", "space-lg": "1.5rem", "space-3xl": "4rem", "space-sm": "0.75rem", "space-xl": "2rem", "gutter-desktop": "1.5rem", "space-2xl": "3rem", "space-md": "1rem", "space-2xs": "0.25rem" }, "fontFamily": { "label-caps": ["JetBrains Mono"], "body-lg": ["Plus Jakarta Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "body-md": ["Plus Jakarta Sans"], "display-lg": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "label-mono": ["JetBrains Mono"], "body-sm": ["Plus Jakarta Sans"] }, "fontSize": { "label-caps": ["11px", { "lineHeight": "14px", "letterSpacing": "0.08em", "fontWeight": "500" }], "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "400" }], "display-lg-mobile": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.025em", "fontWeight": "600" }], "headline-sm": ["18px", { "lineHeight": "26px", "letterSpacing": "-0.015em", "fontWeight": "500" }], "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }], "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.03em", "fontWeight": "600" }], "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "label-mono": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "400" }], "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.005em", "fontWeight": "400" }] } } } }</script><style>@layer base { html, body { margin: 0; padding: 0; min-height: 100%; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } } ::-webkit-scrollbar { display: none; }</style></head><body class="bg-surface text-on-surface font-body-md text-body-md antialiased flex flex-col min-h-screen selection:bg-primary-container selection:text-on-primary-container"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)]"><div class="h-16 px-gutter-mobile flex items-center justify-between max-w-max-width-interface mx-auto"><div class="flex items-center gap-space-xs"><img alt="Walkie App Icon" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1VWYaNRVgeMjzQHvFTk6QZ4RBcXCUp985XdvR7EiqQ7f83mWatoj2QQXpLlFLTDC4zi9o5ueUVTv3c-pf0JVEPwnY3SzkFBPawBzJMb_xO-ZAQK3s13BiROfgKxEKKRE-D67ATm6ZyDXqijsXsRkA-rmKuskm38SpdvR2pj9OOmhPNMALP_OfZbQJ1Hip1UL05evl4elbdM-8hitLnXi5JKbGclTK1R6x0jgHRvObqwZA0wzM8tjmWc4jM"/><div class="flex flex-col"><div class="flex items-center gap-space-2xs"><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight leading-none">Walkie</span><div class="w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_8px_rgba(78,222,163,0.6)]"></div></div><span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Groups</span></div></div><div class="flex items-center gap-space-xs"><div class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-surface-container-low"><span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span><span class="font-label-mono text-label-mono text-secondary">ONLINE</span></div><a class="flex items-center justify-center p-0.5 rounded-full ring-1 ring-outline-variant/30 hover:ring-primary/60 transition-all" data-path="settings" href="#"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClVu2aWY8mDDrFFdG1ivVdQ5ay-LmZgMkE5H_1kTv-NCs8hKYViJh2mwG7Tsz-MfJgky9918F1AsNPq0uaGb9ofVH6Gt8r4jLVEom2UQH8RTfioHJhQdxDB5xoExi8eKoenZOoLaUjJ5F8WMG__M-XVqxl4FwPMW1klcnkIRjLUQqdrZLqlZ2j_deMU3vbHbKykQmElhSy2La6WkGBh5l1mYvqHgS8Q_M8X0JeTAn0dY_Fdbv4359o"/></a></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-28 bg-surface max-w-max-width-interface mx-auto px-gutter-mobile"><div class="flex flex-col w-full gap-space-md">
+<!-- Telemetry & Status Banner -->
+<section class="flex items-center justify-between px-space-xs py-space-2xs">
+<div class="flex items-center gap-space-xs">
+<h1 class="font-headline-md text-headline-md text-on-surface tracking-tight">Channels</h1>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high font-label-mono text-label-mono text-on-surface-variant">
+        5 SYNCED
+      </span>
+</div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-low shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span class="font-label-caps text-label-caps uppercase text-secondary tracking-wider">14ms • Low Lat</span>
+</div>
+</section>
+<!-- Filter & Frequency Search Deck -->
+<div class="flex flex-col gap-space-xs">
+<div class="relative w-full">
+<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">search</span>
+</div>
+<input class="w-full bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/60 font-body-md text-body-md pl-10 pr-10 py-2.5 rounded-xl transition-all focus:bg-surface-container focus:text-on-surface outline-none shadow-inner" id="channelSearchInput" placeholder="Filter channels or frequency..." type="text"/>
+<button class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-on-surface" id="clearSearchBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Quick Filter Category Pills -->
+<div class="flex items-center gap-2 overflow-x-auto pb-1" id="filterPillsContainer">
+<button class="filter-pill active-pill px-3 py-1.5 rounded-lg font-label-caps text-label-caps uppercase flex items-center gap-1.5 bg-primary-container text-on-primary-container transition-all shadow-sm" data-filter="all" type="button">
+<span>All Channels</span>
+<span class="opacity-80 font-label-mono text-label-mono font-medium">(5)</span>
+</button>
+<button class="filter-pill px-3 py-1.5 rounded-lg font-label-caps text-label-caps uppercase flex items-center gap-1.5 bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all" data-filter="favorites" type="button">
+<span>Favorites</span>
+<span class="opacity-60 font-label-mono text-label-mono">(2)</span>
+</button>
+<button class="filter-pill px-3 py-1.5 rounded-lg font-label-caps text-label-caps uppercase flex items-center gap-1.5 bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all" data-filter="nearby" type="button">
+<span>Nearby</span>
+<span class="opacity-60 font-label-mono text-label-mono">(1)</span>
+</button>
+</div>
+</div>
+<!-- Channel Cards Feed -->
+<div class="flex flex-col gap-3" id="channelDeckList">
+<!-- Card 1: Night Owls Studio (Active Live Transmission) -->
+<article class="channel-card group relative bg-surface-container rounded-xl p-4 shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-all active:scale-[0.99] cursor-pointer" data-card-type="favorites" data-frequency="CH 04">
+<div class="flex items-start justify-between gap-3 mb-2.5">
+<div class="flex items-center gap-3 min-w-0">
+<div class="relative flex-shrink-0">
+<img class="w-12 h-12 rounded-xl object-cover" data-alt="Intimate darkened sound engineering workspace in deep charcoal and acoustic foam panels, with soft warm amber LED strips framing vintage broadcast mixing hardware and monitor dials." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCI_5gMY5WjGjCJrwRDSS2HR-Roy5r3g5gtyhTdJRI1nA4L3seG2_f37IwmDiSTwaUmmaxNNUEwuacs4IJ6ipSlAAGGbwALKuSISLbcnyPl4dUGHhQ9rLqpTJVSuch1Yo-iwc70DmNvDUzHse-Lc4vaRJp7V0fDUSRW4xFk3B3xo1v6PztCQUh6qmgPMlS88XThMkju1AyT93XcLAb5zNr6aUZANgAq0ya-EENvztm1VEeI3UiyWwdA"/>
+<span class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface-container-lowest">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">Night Owls Studio</h2>
+<span class="material-symbols-outlined text-[16px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div class="flex items-center gap-1.5 text-primary">
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Broadcasting</span>
+<span class="text-on-surface-variant/40 font-label-mono text-label-mono">•</span>
+<span class="font-label-mono text-label-mono">4 online</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1 flex-shrink-0">
+<span class="px-2 py-0.5 rounded bg-surface-container-high font-label-mono text-label-mono text-primary font-medium">
+            CH 04
+          </span>
+<span class="material-symbols-outlined text-on-surface-variant/60 group-hover:text-primary transition-colors text-[20px]">
+            chevron_right
+          </span>
+</div>
+</div>
+<!-- Waveform Audio Telemetry Segment -->
+<div class="flex items-center justify-between pt-2 mt-1 bg-surface-container-low/70 px-3 py-2 rounded-lg">
+<div class="flex items-center gap-2 min-w-0">
+<div aria-label="Audio level meter" class="flex items-end gap-0.5 h-3.5 w-8 flex-shrink-0">
+<span class="w-1 bg-primary rounded-full animate-pulse h-2"></span>
+<span class="w-1 bg-primary rounded-full animate-pulse h-3.5" style="animation-delay: 150ms"></span>
+<span class="w-1 bg-primary rounded-full animate-pulse h-1.5" style="animation-delay: 300ms"></span>
+<span class="w-1 bg-primary rounded-full animate-pulse h-3" style="animation-delay: 75ms"></span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface truncate">
+            Marcus speaking <span class="text-on-surface-variant font-label-mono text-label-mono">2m ago</span>
+</span>
+</div>
+<button aria-label="Direct quick listen" class="flex items-center justify-center w-7 h-7 rounded-lg bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary transition-all" type="button">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">volume_up</span>
+</button>
+</div>
+</article>
+<!-- Card 2: Basecamp Logistics (Passive Standby) -->
+<article class="channel-card group relative bg-surface-container rounded-xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-all active:scale-[0.99] cursor-pointer" data-card-type="nearby" data-frequency="CH 09">
+<div class="flex items-start justify-between gap-3 mb-2">
+<div class="flex items-center gap-3 min-w-0">
+<div class="relative flex-shrink-0">
+<img class="w-12 h-12 rounded-xl object-cover" data-alt="Rugged mountain supply outpost interior with organized black matte flight cases, tactical communication dispatch transceivers, and cool forest green ambient LED telemetry." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAi1BMCJa6PSoXa8fMw8XpVs9rGVi-c9jF5pHaS8h4COlrP-Gss4uJOWzAymhbMtFJJSGe0CwEtcK1JgmQwhjigR04tZiJRBwPVO9A02NyG4_TKGysvEFKJGn3PsAvO80VPlK3t8dwW3QzkawZIYT2q38MoyxZoSEWrt8pEiddolNsERc0EhuNURA_C3Zqrb1Kmgs6qDz8CcJ9VlWP4f56x1GhfOJNONLbriZxXz5Ymg4PYmy63MoY9"/>
+<span class="absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-surface-container-lowest">
+<span class="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">Basecamp Logistics</h2>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="font-label-caps text-label-caps uppercase tracking-wider text-secondary">Standby</span>
+<span class="text-on-surface-variant/40 font-label-mono text-label-mono">•</span>
+<span class="font-label-mono text-label-mono">2 online / 8 total</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1 flex-shrink-0">
+<span class="px-2 py-0.5 rounded bg-surface-container-high font-label-mono text-label-mono text-on-surface-variant font-medium">
+            CH 09
+          </span>
+<span class="material-symbols-outlined text-on-surface-variant/60 group-hover:text-on-surface transition-colors text-[20px]">
+            chevron_right
+          </span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1.5 text-on-surface-variant">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[15px] text-on-surface-variant">mic</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">
+            Audio dispatch <span class="font-label-mono text-label-mono">14m ago</span>
+</span>
+</div>
+<span class="font-label-caps text-label-caps uppercase text-secondary/90">Range: 4.2km</span>
+</div>
+</article>
+<!-- Card 3: Alpine Expedition Team -->
+<article class="channel-card group relative bg-surface-container rounded-xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-all active:scale-[0.99] cursor-pointer" data-card-type="favorites" data-frequency="CH 12">
+<div class="flex items-start justify-between gap-3 mb-2">
+<div class="flex items-center gap-3 min-w-0">
+<div class="relative flex-shrink-0">
+<img class="w-12 h-12 rounded-xl object-cover" data-alt="Misty high-altitude snow ridge with silhouette mountaineering gear, an expedition storm tent, cold blue-grey natural mountain dusk light, and an illuminated radio handheld antenna." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9Z9F08iNa6jibIQ1tVRFmSuFfe84JlGQbeLCMoZKFeCSnmI5U8xS_f5dO083o1r7aEYSpE0iEj1Uhz3rG2M59SnDOLhZBjo9cdokdcW3vIuo0KJStgxPerSSs5JKukmZjQdslx4q2nmpeRoyeqLhtFoByMxZvTrKroww0iyM1PbeWYlKBEpR5IwXuONIcTXeBTLJaTKsqOBEFYmwP8Q033aKqdPYS16GVExx9Bj9ybiZPaBneCzcA"/>
+<span class="absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-surface-container-lowest">
+<span class="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">Alpine Expedition Team</h2>
+<span class="material-symbols-outlined text-[16px] text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="font-label-caps text-label-caps uppercase tracking-wider text-secondary">Standby</span>
+<span class="text-on-surface-variant/40 font-label-mono text-label-mono">•</span>
+<span class="font-label-mono text-label-mono">3 online / 5 total</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1 flex-shrink-0">
+<span class="px-2 py-0.5 rounded bg-surface-container-high font-label-mono text-label-mono text-on-surface-variant font-medium">
+            CH 12
+          </span>
+<span class="material-symbols-outlined text-on-surface-variant/60 group-hover:text-on-surface transition-colors text-[20px]">
+            chevron_right
+          </span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1.5 text-on-surface-variant">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[15px] text-on-surface-variant">schedule</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">
+            Check-in <span class="font-label-mono text-label-mono">1h ago</span> (Ridge point 3)
+          </span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-surface-container-highest"></span>
+<span class="font-label-caps text-label-caps uppercase text-on-surface-variant/80">Encrypted</span>
+</div>
+</div>
+</article>
+<!-- Card 4: Design Huddle (Idle) -->
+<article class="channel-card group relative bg-surface-container-low rounded-xl p-4 shadow-[0_4px_12px_rgba(0,0,0,0.2)] opacity-85 hover:opacity-100 transition-all active:scale-[0.99] cursor-pointer" data-card-type="idle" data-frequency="CH 01">
+<div class="flex items-start justify-between gap-3 mb-2">
+<div class="flex items-center gap-3 min-w-0">
+<div class="relative flex-shrink-0">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[24px]">design_services</span>
+</div>
+<span class="absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-surface-container-lowest">
+<span class="relative inline-flex rounded-full h-2 w-2 bg-outline-variant"></span>
+</span>
+</div>
+<div class="flex flex-col min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-on-surface/90 truncate tracking-tight">Design Huddle</h2>
+<div class="flex items-center gap-1.5 text-on-surface-variant/80">
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Quiet</span>
+<span class="text-on-surface-variant/40 font-label-mono text-label-mono">•</span>
+<span class="font-label-mono text-label-mono">0 online / 12 total</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1 flex-shrink-0">
+<span class="px-2 py-0.5 rounded bg-surface-container font-label-mono text-label-mono text-on-surface-variant/70 font-medium">
+            CH 01
+          </span>
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-on-surface transition-colors text-[20px]">
+            chevron_right
+          </span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1.5 text-on-surface-variant/70">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="material-symbols-outlined text-[15px]">history</span>
+<span class="font-body-sm text-body-sm truncate">
+            Last sync <span class="font-label-mono text-label-mono">Yesterday 18:40</span>
+</span>
+</div>
+<span class="font-label-caps text-label-caps uppercase text-on-surface-variant/50">Muted</span>
+</div>
+</article>
+</div>
+<!-- Empty State Placeholder for dynamic search filtering -->
+<div class="hidden flex-col items-center justify-center py-10 px-4 text-center" id="noChannelsFound">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant mb-3">
+<span class="material-symbols-outlined text-[24px]">signal_cellular_nodata</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface mb-1">No channels on this band</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-xs">
+      Try searching by different frequency callsigns or select another filter view.
+    </p>
+</div>
+<!-- Bottom Floating Ambient Action Strip -->
+<section class="mt-2 w-full">
+<div class="flex items-center justify-between p-3.5 rounded-xl bg-surface-container-high/80 shadow-md">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">graphic_eq</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps uppercase text-on-surface">Tap any card to tune in</span>
+<span class="font-label-mono text-label-mono text-on-surface-variant">Push-to-talk ready on tap</span>
+</div>
+</div>
+<a class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container font-label-caps text-label-caps uppercase text-on-surface hover:bg-surface-bright transition-colors" data-path="join-group" href="#">
+<span class="material-symbols-outlined text-[16px]">dialpad</span>
+<span>Tune</span>
+</a>
+</div>
+</section>
+</div>
+<script>
+  (function initChannelsView() {
+    const searchInput = document.getElementById('channelSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    const cards = document.querySelectorAll('.channel-card');
+    const filterPills = document.querySelectorAll('.filter-pill');
+    const emptyState = document.getElementById('noChannelsFound');
+
+    let currentFilter = 'all';
+
+    function applyFilterAndSearch() {
+      const query = (searchInput.value || '').trim().toLowerCase();
+      let visibleCount = 0;
+
+      cards.forEach(card => {
+        const textContent = card.innerText.toLowerCase();
+        const cardType = card.getAttribute('data-card-type') || '';
+        const freqTag = (card.getAttribute('data-frequency') || '').toLowerCase();
+
+        let matchesFilter = true;
+        if (currentFilter === 'favorites') {
+          matchesFilter = cardType.includes('favorites');
+        } else if (currentFilter === 'nearby') {
+          matchesFilter = cardType.includes('nearby');
+        }
+
+        const matchesQuery = !query || textContent.includes(query) || freqTag.includes(query);
+
+        if (matchesFilter && matchesQuery) {
+          card.classList.remove('hidden');
+          visibleCount++;
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+
+      if (visibleCount === 0) {
+        emptyState.classList.remove('hidden');
+        emptyState.classList.add('flex');
+      } else {
+        emptyState.classList.add('hidden');
+        emptyState.classList.remove('flex');
+      }
+
+      if (query.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyFilterAndSearch);
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.focus();
+        applyFilterAndSearch();
+      });
+    }
+
+    filterPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        filterPills.forEach(p => {
+          p.classList.remove('active-pill', 'bg-primary-container', 'text-on-primary-container');
+          p.classList.add('bg-surface-container-high', 'text-on-surface-variant');
+        });
+
+        pill.classList.add('active-pill', 'bg-primary-container', 'text-on-primary-container');
+        pill.classList.remove('bg-surface-container-high', 'text-on-surface-variant');
+
+        currentFilter = pill.getAttribute('data-filter') || 'all';
+        applyFilterAndSearch();
+      });
+    });
+
+    cards.forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        const channelName = card.querySelector('h2') ? card.querySelector('h2').innerText : 'Channel';
+        const freq = card.getAttribute('data-frequency') || '';
+        // Subtle micro-feedback simulation
+        card.style.transform = 'scale(0.98)';
+        setTimeout(() => {
+          card.style.transform = '';
+        }, 120);
+      });
+    });
+  })();
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe pointer-events-none" data-active-classes="text-primary-container"><div class="max-w-max-width-interface mx-auto px-gutter-mobile pb-space-sm"><div class="pointer-events-auto h-16 rounded-xl bg-surface-container/85 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.6)] flex items-center justify-around px-space-xs"><a aria-current="page" class="flex flex-col items-center justify-center min-w-[52px] min-h-[44px] gap-1 transition-colors text-primary-container" data-path="groups" href="#"><span class="material-symbols-outlined text-[22px]">forum</span><span class="font-label-caps text-label-caps uppercase">Groups</span></a><a class="flex flex-col items-center justify-center min-w-[52px] min-h-[44px] gap-1 text-on-surface-variant hover:text-on-surface transition-colors" data-path="join-group" href="#"><span class="material-symbols-outlined text-[22px]">qr_code_scanner</span><span class="font-label-caps text-label-caps uppercase">Join</span></a><a class="flex flex-col items-center justify-center min-w-[52px] min-h-[44px] gap-1 text-on-surface-variant hover:text-on-surface transition-colors" data-path="create-group" href="#"><span class="material-symbols-outlined text-[22px]">add_circle</span><span class="font-label-caps text-label-caps uppercase">Create</span></a><a class="flex flex-col items-center justify-center min-w-[52px] min-h-[44px] gap-1 text-on-surface-variant hover:text-on-surface transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[22px]">tune</span><span class="font-label-caps text-label-caps uppercase">Settings</span></a></div></div></nav></body></html>
