@@ -95,3 +95,21 @@ async def test_ptt_lock_logic():
     acquired_b_second = await cm.try_acquire_ptt(group_id, user_b)
     assert acquired_b_second is True
     assert cm.get_active_speaker(group_id) == user_b
+
+@pytest.mark.asyncio
+async def test_delete_group():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Create group
+        resp = await client.post("/groups", json={"name": "Bravo Squad"})
+        assert resp.status_code == 201
+        group_id = resp.json()["id"]
+
+        # Delete group
+        del_resp = await client.delete(f"/groups/{group_id}")
+        assert del_resp.status_code == 200
+        assert del_resp.json()["status"] == "deleted"
+
+        # Verify group no longer exists
+        get_resp = await client.get(f"/groups/{group_id}")
+        assert get_resp.status_code == 404

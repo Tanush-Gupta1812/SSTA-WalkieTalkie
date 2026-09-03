@@ -5,12 +5,29 @@ import '../models/group.dart';
 import '../models/member.dart';
 
 class ApiService {
-  static Future<Group> createGroup(String name) async {
+  static Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true',
+        'Connection': 'close',
+      };
+
+  static Future<Group> createGroup(
+    String name, {
+    String? creatorId,
+    String? creatorDisplayName,
+  }) async {
     final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups');
+    final Map<String, dynamic> body = {'name': name};
+    if (creatorId != null) body['creator_id'] = creatorId;
+    if (creatorDisplayName != null) {
+      body['creator_display_name'] = creatorDisplayName;
+    }
+
     final response = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'name': name}),
+      headers: _headers,
+      body: jsonEncode(body),
     );
 
     if (response.statusCode == 201) {
@@ -22,7 +39,7 @@ class ApiService {
 
   static Future<List<Group>> listGroups() async {
     final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups');
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
       final List<dynamic> list = jsonDecode(response.body) as List<dynamic>;
@@ -36,7 +53,7 @@ class ApiService {
 
   static Future<Group> getGroup(String groupId) async {
     final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/$groupId');
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
       return Group.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
@@ -53,7 +70,7 @@ class ApiService {
     final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/join');
     final response = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'join_token': joinToken,
         'user_id': userId,
@@ -72,7 +89,7 @@ class ApiService {
 
   static Future<List<Member>> getMembers(String groupId) async {
     final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/$groupId/members');
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
       final List<dynamic> list = jsonDecode(response.body) as List<dynamic>;
@@ -89,10 +106,19 @@ class ApiService {
     required String userId,
   }) async {
     final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/$groupId/members/$userId');
-    final response = await http.delete(uri);
+    final response = await http.delete(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw Exception('Failed to leave group: ${response.body}');
+    }
+  }
+
+  static Future<void> deleteGroup(String groupId) async {
+    final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/$groupId');
+    final response = await http.delete(uri, headers: _headers);
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete group: ${response.body}');
     }
   }
 }

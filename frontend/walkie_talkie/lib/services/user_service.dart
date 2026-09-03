@@ -5,6 +5,17 @@ class UserService {
   static const String _keyUserId = 'walkie_user_id';
   static const String _keyDisplayName = 'walkie_display_name';
   static const String _keyJoinedGroupIds = 'walkie_joined_groups';
+  static const String _keyServerUrl = 'walkie_server_url';
+
+  static Future<String?> getSavedServerUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyServerUrl);
+  }
+
+  static Future<void> saveServerUrl(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyServerUrl, url.trim());
+  }
 
   static Future<String> getUserId() async {
     final prefs = await SharedPreferences.getInstance();

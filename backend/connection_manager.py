@@ -104,18 +104,22 @@ class ConnectionManager:
     def get_online_users(self, group_id: str) -> Set[str]:
         return set(self.active_connections.get(group_id, {}).keys())
 
-    async def broadcast_bytes(self, group_id: str, data: bytes, exclude_user_id: Optional[str] = None):
+    async def broadcast_bytes(self, group_id: str, data: bytes, exclude_user_id: Optional[str] = None) -> int:
         """
-        Relays binary audio chunks to all other connected sockets in the group.
+        Relays binary audio chunks to connected sockets in the group.
+        Returns the number of recipients audio was delivered to.
         """
+        sent_count = 0
         connections = list(self.active_connections.get(group_id, {}).items())
         for u_id, ws in connections:
             if u_id == exclude_user_id:
                 continue
             try:
                 await ws.send_bytes(data)
+                sent_count += 1
             except Exception as e:
                 logger.warning(f"Failed to send audio chunk to user {u_id}: {e}")
+        return sent_count
 
     async def broadcast_json(self, group_id: str, payload: dict, exclude_user_id: Optional[str] = None):
         """

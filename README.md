@@ -35,7 +35,25 @@ To run backend tests:
 python -m pytest test_backend.py -v
 ```
 
-### 2. Run the Flutter Mobile App
+### 2. Connect Across Different Networks (Phone on Cellular or Different WiFi)
+
+To connect when your laptop and phone are not on the same WiFi network, run the included tunnel script in a second terminal:
+
+```bash
+cd backend
+python tunnel.py
+```
+
+This generates a public secure URL (e.g., `https://xxxx.loca.lt` or Cloudflare tunnel). 
+
+On your phone:
+1. Tap the **Server Connection** icon (`<->` in the top right of the channel list).
+2. Paste the public tunnel URL and tap **Connect**.
+3. The app saves this URL automatically and routes all REST and WebSocket audio traffic securely over the internet!
+
+---
+
+### 3. Run the Flutter Mobile App
 
 ```bash
 cd frontend/walkie_talkie
@@ -43,5 +61,5 @@ flutter pub get
 flutter run
 ```
 
-> **Network Configuration Note**:
-> When testing on a physical mobile device, tap the **Ethernet / Server Config** icon in the top right of the channel list screen and enter your computer's local WiFi IP (e.g. `192.168.1.15`). Android emulators automatically route via `10.0.2.2`.
+> **Local Network Note**:
+> If both devices *are* on the same WiFi, you can simply enter your computer's local IP (e.g. `192.168.1.15`). Android emulators automatically route to `10.0.2.2`.

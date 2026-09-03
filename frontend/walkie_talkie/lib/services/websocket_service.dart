@@ -37,6 +37,27 @@ class WebSocketService extends ChangeNotifier {
   bool get isChannelBusy =>
       _activeSpeakerId != null && _activeSpeakerId != userId;
 
+  // Solo Echo / Loopback mode
+  bool _echoMode = false;
+  bool get echoMode => _echoMode;
+  set echoMode(bool value) {
+    _echoMode = value;
+    notifyListeners();
+  }
+
+  // Audio stats & mic level
+  int _packetsSent = 0;
+  int get packetsSent => _packetsSent;
+
+  int _packetsReceived = 0;
+  int get packetsReceived => _packetsReceived;
+
+  double _micLevel = 0.0;
+  double get micLevel => _micLevel;
+
+  bool _isGroupDeleted = false;
+  bool get isGroupDeleted => _isGroupDeleted;
+
   // Group membership presence
   final List<Member> _members = [];
   List<Member> get members => List.unmodifiable(_members);
@@ -213,12 +234,21 @@ class WebSocketService extends ChangeNotifier {
         _isSpeaking = false;
         notifyListeners();
         break;
+
+      case 'group_deleted':
+        _isGroupDeleted = true;
+        _isSpeaking = false;
+        _stopRecording();
+        notifyListeners();
+        break;
     }
   }
 
   void _playAudioChunk(Uint8List pcmBytes) {
     if (!_soundInitialized || pcmBytes.isEmpty) return;
     try {
+      _packetsReceived++;
+      notifyListeners();
       final byteData = pcmBytes.buffer.asByteData(
         pcmBytes.offsetInBytes,
         pcmBytes.lengthInBytes,
@@ -241,9 +271,14 @@ class WebSocketService extends ChangeNotifier {
       return;
     }
 
-    // 1. Send ptt_start signal
-    _channel?.sink.add(jsonEncode({'type': 'ptt_start'}));
+    // 1. Send ptt_start signal with echo preference
+    _channel?.sink.add(jsonEncode({
+      'type': 'ptt_start',
+      'echo': _echoMode,
+    }));
     _isSpeaking = true;
+    _packetsSent = 0;
+    _micLevel = 0.0;
     notifyListeners();
 
     // 2. Start recording stream (PCM 16-bit 16kHz mono)
@@ -260,13 +295,25 @@ class WebSocketService extends ChangeNotifier {
       _recordSub = audioStream.listen((chunk) {
         if (!_isSpeaking) return;
 
+        // Calculate peak amplitude from 16-bit PCM for live visual soundwave
+        double peak = 0.0;
+        for (int i = 0; i < chunk.length - 1; i += 2) {
+          int s = chunk[i] | (chunk[i + 1] << 8);
+          if (s > 32767) s -= 65536;
+          final val = s.abs();
+          if (val > peak) peak = val.toDouble();
+        }
+        _micLevel = (peak / 32768.0).clamp(0.0, 1.0);
+
         // Buffer into 40ms frames (~1280 bytes) before sending over WebSocket
         _audioBuffer.addAll(chunk);
         while (_audioBuffer.length >= AppConfig.frameChunkSize) {
           final frame = _audioBuffer.sublist(0, AppConfig.frameChunkSize);
           _channel?.sink.add(Uint8List.fromList(frame));
+          _packetsSent++;
           _audioBuffer = _audioBuffer.sublist(AppConfig.frameChunkSize);
         }
+        notifyListeners();
       });
     } catch (e) {
       debugPrint('Error starting audio recorder stream: $e');
@@ -279,11 +326,13 @@ class WebSocketService extends ChangeNotifier {
     if (!_isSpeaking) return;
 
     _isSpeaking = false;
+    _micLevel = 0.0;
     await _stopRecording();
 
     // Flush any remaining buffered audio bytes
     if (_audioBuffer.isNotEmpty) {
       _channel?.sink.add(Uint8List.fromList(_audioBuffer));
+      _packetsSent++;
       _audioBuffer.clear();
     }
 

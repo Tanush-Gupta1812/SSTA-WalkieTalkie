@@ -34,6 +34,21 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
     });
 
     try {
+      if (AppConfig.customUrlOrHost.isEmpty) {
+        final savedUrl = await UserService.getSavedServerUrl();
+        if (savedUrl != null && savedUrl.isNotEmpty) {
+          // If saved URL is a temporary trycloudflare domain that doesn't match the current active one, reset it
+          if (savedUrl.contains('.trycloudflare.com') && savedUrl != AppConfig.publicTunnelUrl) {
+            await UserService.saveServerUrl(AppConfig.publicTunnelUrl);
+            AppConfig.customUrlOrHost = AppConfig.publicTunnelUrl;
+          } else {
+            AppConfig.customUrlOrHost = savedUrl;
+          }
+        } else if (AppConfig.publicTunnelUrl.isNotEmpty) {
+          AppConfig.customUrlOrHost = AppConfig.publicTunnelUrl;
+        }
+      }
+
       final name = await UserService.getDisplayName();
       final groups = await ApiService.listGroups();
 
@@ -89,19 +104,115 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
     }
   }
 
+  Future<void> _leaveGroup(Group group) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WalkieTheme.surfaceCardElevated,
+        title: const Text('Leave Channel?'),
+        content: Text('Disconnect from "${group.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: WalkieTheme.alertCrimson,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final userId = await UserService.getUserId();
+      await ApiService.leaveGroup(groupId: group.id, userId: userId);
+      await UserService.removeJoinedGroupId(group.id);
+      _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Left "${group.name}"')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to leave: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteGroup(Group group) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WalkieTheme.surfaceCardElevated,
+        title: const Text('Delete Channel Permanently?'),
+        content: Text(
+          'Are you sure you want to delete "${group.name}"? This will permanently delete the channel for all members.',
+          style: const TextStyle(color: WalkieTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: WalkieTheme.alertCrimson,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete Channel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await ApiService.deleteGroup(group.id);
+      await UserService.removeJoinedGroupId(group.id);
+      _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Deleted "${group.name}" successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    }
+  }
+
   void _configureServerHost() {
-    final controller = TextEditingController(text: AppConfig.effectiveHost);
+    final controller = TextEditingController(
+      text: AppConfig.customUrlOrHost.isNotEmpty
+          ? AppConfig.customUrlOrHost
+          : AppConfig.effectiveHost,
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: WalkieTheme.surfaceCardElevated,
-        title: const Text('Backend Server IP'),
+        title: const Text('Backend Server Connection'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Set the host IP of your FastAPI backend:',
+              'Enter your FastAPI server URL or IP.\nFor different networks, paste your tunnel URL (e.g. https://xxx.trycloudflare.com):',
               style: TextStyle(fontSize: 13, color: WalkieTheme.textSecondary),
             ),
             const SizedBox(height: 12),
@@ -109,8 +220,8 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
               controller: controller,
               style: const TextStyle(color: WalkieTheme.textPrimary),
               decoration: const InputDecoration(
-                hintText: 'e.g. 192.168.1.15 or 10.0.2.2',
-                hintStyle: TextStyle(color: WalkieTheme.textTertiary),
+                hintText: 'https://xxx.trycloudflare.com or 192.168.1.15',
+                hintStyle: TextStyle(color: WalkieTheme.textTertiary, fontSize: 13),
               ),
             ),
           ],
@@ -121,9 +232,11 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
             child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
           ),
           ElevatedButton(
-            onPressed: () {
-              AppConfig.customHost = controller.text.trim();
-              Navigator.of(ctx).pop();
+            onPressed: () async {
+              final newUrl = controller.text.trim();
+              AppConfig.customUrlOrHost = newUrl;
+              await UserService.saveServerUrl(newUrl);
+              if (ctx.mounted) Navigator.of(ctx).pop();
               _loadData();
             },
             child: const Text('Connect'),
@@ -177,7 +290,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: WalkieTheme.primaryAmber.withOpacity(0.2),
+                      backgroundColor: WalkieTheme.primaryAmber.withValues(alpha: 0.2),
                       child: const Icon(Icons.person, size: 18, color: WalkieTheme.primaryAmber),
                     ),
                     const SizedBox(width: 12),
@@ -249,7 +362,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.radio, size: 56, color: WalkieTheme.textTertiary.withOpacity(0.4)),
+                                  Icon(Icons.radio, size: 56, color: WalkieTheme.textTertiary.withValues(alpha: 0.4)),
                                   const SizedBox(height: 16),
                                   const Text(
                                     'No channels found',
@@ -270,7 +383,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                           : ListView.separated(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                               itemCount: _groups.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              separatorBuilder: (_, _) => const SizedBox(height: 12),
                               itemBuilder: (ctx, idx) {
                                 final group = _groups[idx];
                                 return Card(
@@ -297,7 +410,45 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                                         color: WalkieTheme.textTertiary,
                                       ),
                                     ),
-                                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: WalkieTheme.textTertiary),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        PopupMenuButton<String>(
+                                          icon: const Icon(Icons.more_vert, size: 20, color: WalkieTheme.textTertiary),
+                                          onSelected: (action) async {
+                                            if (action == 'leave') {
+                                              await _leaveGroup(group);
+                                            } else if (action == 'delete') {
+                                              await _deleteGroup(group);
+                                            }
+                                          },
+                                          itemBuilder: (ctx) => [
+                                            const PopupMenuItem(
+                                              value: 'leave',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.exit_to_app, color: WalkieTheme.textPrimary, size: 18),
+                                                  SizedBox(width: 8),
+                                                  Text('Leave Channel'),
+                                                ],
+                                              ),
+                                            ),
+                                            const PopupMenuDivider(),
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.delete_forever_rounded, color: WalkieTheme.alertCrimson, size: 18),
+                                                  SizedBox(width: 8),
+                                                  Text('Delete Channel', style: TextStyle(color: WalkieTheme.alertCrimson)),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const Icon(Icons.arrow_forward_ios, size: 12, color: WalkieTheme.textTertiary),
+                                      ],
+                                    ),
                                     onTap: () async {
                                       await Navigator.of(context).push(
                                         MaterialPageRoute(

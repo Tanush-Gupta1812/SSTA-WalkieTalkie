@@ -4,6 +4,8 @@ from datetime import datetime
 
 class CreateGroupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="Group name")
+    creator_id: Optional[str] = None
+    creator_display_name: Optional[str] = None
 
 class GroupResponse(BaseModel):
     id: str
@@ -27,3 +29,8 @@ class LeaveGroupResponse(BaseModel):
     status: str
     group_id: str
     user_id: str
+
+class DeleteGroupResponse(BaseModel):
+    status: str
+    group_id: str
+    message: str = "Group deleted successfully"

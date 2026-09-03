@@ -15,7 +15,8 @@ from models import (
     GroupResponse,
     JoinGroupRequest,
     MemberResponse,
-    LeaveGroupResponse
+    LeaveGroupResponse,
+    DeleteGroupResponse
 )
 from connection_manager import manager
 
@@ -73,13 +74,26 @@ async def create_group(
         "INSERT INTO groups (id, name, join_token) VALUES (?, ?, ?)",
         (group_id, req.name.strip(), join_token)
     )
+
+    member_count = 0
+    if req.creator_id and req.creator_display_name:
+        await db.execute(
+            """
+            INSERT INTO members (group_id, user_id, display_name)
+            VALUES (?, ?, ?)
+            ON CONFLICT(group_id, user_id) DO UPDATE SET display_name = excluded.display_name
+            """,
+            (group_id, req.creator_id, req.creator_display_name.strip())
+        )
+        member_count = 1
+
     await db.commit()
 
     return GroupResponse(
         id=group_id,
         name=req.name.strip(),
         join_token=join_token,
-        member_count=0
+        member_count=member_count
     )
 
 @app.get("/groups", response_model=List[GroupResponse])
@@ -212,6 +226,47 @@ async def leave_group(
         user_id=user_id
     )
 
+@app.delete("/groups/{group_id}", response_model=DeleteGroupResponse)
+async def delete_group(
+    group_id: str,
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    # Check if group exists
+    cursor = await db.execute("SELECT id, name FROM groups WHERE id = ?", (group_id,))
+    row = await cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    group_name = row["name"]
+
+    # Notify connected sockets that group was deleted
+    await manager.broadcast_json(group_id, {
+        "type": "group_deleted",
+        "group_id": group_id,
+        "name": group_name
+    })
+
+    # Close and disconnect all active WebSockets
+    conns = list(manager.active_connections.get(group_id, {}).items())
+    for u_id, ws in conns:
+        try:
+            await ws.close(code=1000, reason="Group deleted")
+        except Exception:
+            pass
+        await manager.disconnect(group_id, u_id)
+
+    # Delete members and group from SQLite
+    await db.execute("DELETE FROM members WHERE group_id = ?", (group_id,))
+    await db.execute("DELETE FROM groups WHERE id = ?", (group_id,))
+    await db.commit()
+
+    logger.info(f"Group '{group_name}' ({group_id}) permanently deleted.")
+    return DeleteGroupResponse(
+        status="deleted",
+        group_id=group_id,
+        message=f"Group '{group_name}' deleted successfully"
+    )
+
 # --------------------------------------------------------------------------
 # WebSocket Endpoint: Real-time Audio Streaming & PTT Signaling
 # --------------------------------------------------------------------------
@@ -221,9 +276,15 @@ async def websocket_group_endpoint(
     websocket: WebSocket,
     group_id: str,
     user_id: str = Query(...),
-    display_name: str = Query("User")
+    display_name: str = Query("User"),
+    echo: bool = Query(False)
 ):
     await manager.connect(group_id, user_id, display_name, websocket)
+    is_echo_enabled = echo
+    audio_frame_count = 0
+    total_audio_bytes = 0
+    import time
+    last_log_time = 0.0
 
     try:
         while True:
@@ -237,8 +298,13 @@ async def websocket_group_endpoint(
                     msg_type = data.get("type")
 
                     if msg_type == "ptt_start":
+                        if "echo" in data:
+                            is_echo_enabled = bool(data["echo"])
                         acquired = await manager.try_acquire_ptt(group_id, user_id)
                         if acquired:
+                            audio_frame_count = 0
+                            total_audio_bytes = 0
+                            logger.info(f"🎙️ [PTT ON] '{display_name}' started transmitting (group: {group_id}, echo={is_echo_enabled})")
                             # Notify everyone that this user started speaking
                             await manager.broadcast_json(group_id, {
                                 "type": "ptt_started",
@@ -258,6 +324,7 @@ async def websocket_group_endpoint(
                     elif msg_type == "ptt_stop":
                         released = await manager.release_ptt(group_id, user_id)
                         if released:
+                            logger.info(f"🛑 [PTT OFF] '{display_name}' stopped transmitting (sent {total_audio_bytes} bytes across {audio_frame_count} frames)")
                             await manager.broadcast_json(group_id, {
                                 "type": "ptt_stopped",
                                 "user_id": user_id
@@ -270,7 +337,14 @@ async def websocket_group_endpoint(
                 audio_bytes = message["bytes"]
                 # Only relay audio if this user holds the PTT lock!
                 if manager.is_speaking(group_id, user_id):
-                    await manager.broadcast_bytes(group_id, audio_bytes, exclude_user_id=user_id)
+                    audio_frame_count += 1
+                    total_audio_bytes += len(audio_bytes)
+                    now = time.time()
+                    exclude_id = None if is_echo_enabled else user_id
+                    listeners = await manager.broadcast_bytes(group_id, audio_bytes, exclude_user_id=exclude_id)
+                    if now - last_log_time >= 1.5:
+                        last_log_time = now
+                        logger.info(f"🔊 [AUDIO RELAY] '{display_name}' -> {listeners} listener(s) ({len(audio_bytes)}B/chunk, {total_audio_bytes}B total)")
                 else:
                     logger.debug(f"Dropped audio bytes from user {user_id} (does not hold lock)")
 

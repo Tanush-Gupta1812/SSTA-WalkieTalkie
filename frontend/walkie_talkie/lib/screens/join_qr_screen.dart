@@ -130,7 +130,7 @@ class _JoinQrScreenState extends State<JoinQrScreen> {
                       height: 200,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: WalkieTheme.primaryAmber.withOpacity(0.8),
+                          color: WalkieTheme.primaryAmber.withValues(alpha: 0.8),
                           width: 2,
                         ),
                         borderRadius: BorderRadius.circular(16),
@@ -184,7 +184,7 @@ class _JoinQrScreenState extends State<JoinQrScreen> {
                 decoration: InputDecoration(
                   hintText: 'e.g. WALK92',
                   hintStyle: TextStyle(
-                    color: WalkieTheme.textTertiary.withOpacity(0.5),
+                    color: WalkieTheme.textTertiary.withValues(alpha: 0.5),
                     letterSpacing: 2,
                   ),
                   filled: true,

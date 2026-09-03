@@ -28,15 +28,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     setState(() => _isCreating = true);
 
     try {
-      final group = await ApiService.createGroup(name);
       final userId = await UserService.getUserId();
       final displayName = await UserService.getDisplayName();
 
-      // Automatically join newly created group as first member
-      await ApiService.joinGroupByToken(
-        joinToken: group.joinToken,
-        userId: userId,
-        displayName: displayName,
+      final group = await ApiService.createGroup(
+        name,
+        creatorId: userId,
+        creatorDisplayName: displayName,
       );
 
       await UserService.saveJoinedGroupId(group.id);

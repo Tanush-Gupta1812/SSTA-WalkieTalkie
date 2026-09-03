@@ -2,11 +2,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
+  /// Active public tunnel URL for seamless cross-network & cross-device communication.
+  static const String publicTunnelUrl = 'https://christina-interests-tex-stylish.trycloudflare.com';
+
   /// Base host configuration.
-  /// For Android emulator: use 10.0.2.2
-  /// For iOS simulator / Web / Desktop: use 128.0.0.1 or localhost
-  /// For physical device: replace with your local WiFi IP (e.g., 192.168.1.15)
+  /// Uses public tunnel if configured, or falls back to local emulator / localhost.
   static String get defaultHost {
+    if (publicTunnelUrl.isNotEmpty) return publicTunnelUrl;
     if (kIsWeb) return 'localhost';
     if (Platform.isAndroid) return '10.0.2.2';
     return '127.0.0.1';
@@ -14,13 +16,32 @@ class AppConfig {
 
   static int port = 8000;
 
-  static String customHost = '';
+  static String customUrlOrHost = '';
 
   static String get effectiveHost =>
-      customHost.isNotEmpty ? customHost : defaultHost;
+      customUrlOrHost.isNotEmpty ? customUrlOrHost : defaultHost;
 
-  static String get httpBaseUrl => 'http://$effectiveHost:$port';
-  static String get wsBaseUrl => 'ws://$effectiveHost:$port';
+  static String get httpBaseUrl {
+    final raw = effectiveHost.trim();
+    if (raw.startsWith('https://') || raw.startsWith('http://')) {
+      return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
+    }
+    // If it contains a port already (e.g. 192.168.1.15:8000)
+    if (raw.contains(':')) {
+      return 'http://$raw';
+    }
+    return 'http://$raw:$port';
+  }
+
+  static String get wsBaseUrl {
+    final httpUrl = httpBaseUrl;
+    if (httpUrl.startsWith('https://')) {
+      return 'wss://${httpUrl.substring(8)}';
+    } else if (httpUrl.startsWith('http://')) {
+      return 'ws://${httpUrl.substring(7)}';
+    }
+    return 'ws://$httpUrl';
+  }
 
   // Audio parameters: PCM16 16kHz mono, 40ms frame buffer (~1280 bytes)
   static const int sampleRate = 16000;

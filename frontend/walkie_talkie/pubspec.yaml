@@ -40,7 +40,7 @@ dependencies:
   web_socket_channel: ^3.0.0
 
   # Audio recording & PCM streaming
-  record: ^5.1.2
+  record: ^7.1.1
   flutter_pcm_sound: ^3.3.3
 
   # QR Scanner & Generator

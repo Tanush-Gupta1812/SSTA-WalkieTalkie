@@ -65,7 +65,15 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
   }
 
   void _onWsUpdate() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (_wsService?.isGroupDeleted == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This channel has been deleted by an administrator.')),
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {});
   }
 
   @override
@@ -117,6 +125,53 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
     }
   }
 
+  Future<void> _deleteChannel() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WalkieTheme.surfaceCardElevated,
+        title: const Text('Delete Channel Permanently?'),
+        content: Text(
+          'Are you sure you want to delete "${widget.group.name}"? This will disconnect all members and remove it from the server.',
+          style: const TextStyle(color: WalkieTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: WalkieTheme.alertCrimson,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete Channel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await ApiService.deleteGroup(widget.group.id);
+      await UserService.removeJoinedGroupId(widget.group.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Channel deleted successfully')),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete channel: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading || _wsService == null) {
@@ -152,6 +207,28 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
         ),
         actions: [
           IconButton(
+            icon: Icon(
+              _wsService!.echoMode ? Icons.repeat_on_rounded : Icons.repeat_rounded,
+              color: _wsService!.echoMode ? WalkieTheme.primaryAmber : WalkieTheme.textSecondary,
+            ),
+            tooltip: _wsService!.echoMode ? 'Echo Test: ON (Hearing Yourself)' : 'Echo Test: OFF',
+            onPressed: () {
+              setState(() {
+                _wsService!.echoMode = !_wsService!.echoMode;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 2),
+                  content: Text(
+                    _wsService!.echoMode
+                        ? 'Echo Test ON: Speak to hear your own voice relayed from the server.'
+                        : 'Echo Test OFF: Normal mode (others hear you).',
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.qr_code_rounded),
             tooltip: 'Share QR Code',
             onPressed: () {
@@ -166,15 +243,27 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
             icon: const Icon(Icons.more_vert),
             onSelected: (val) {
               if (val == 'leave') _leaveChannel();
+              if (val == 'delete') _deleteChannel();
             },
             itemBuilder: (ctx) => [
               const PopupMenuItem(
                 value: 'leave',
                 child: Row(
                   children: [
-                    Icon(Icons.exit_to_app, color: WalkieTheme.alertCrimson, size: 20),
+                    Icon(Icons.exit_to_app, color: WalkieTheme.textPrimary, size: 20),
                     SizedBox(width: 8),
-                    Text('Leave Channel', style: TextStyle(color: WalkieTheme.alertCrimson)),
+                    Text('Leave Channel'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_forever_rounded, color: WalkieTheme.alertCrimson, size: 20),
+                    SizedBox(width: 8),
+                    Text('Delete Channel', style: TextStyle(color: WalkieTheme.alertCrimson)),
                   ],
                 ),
               ),
@@ -191,8 +280,8 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 color: isConnecting
-                    ? WalkieTheme.primaryAmber.withOpacity(0.2)
-                    : WalkieTheme.alertCrimson.withOpacity(0.2),
+                    ? WalkieTheme.primaryAmber.withValues(alpha: 0.2)
+                    : WalkieTheme.alertCrimson.withValues(alpha: 0.2),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -243,7 +332,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                         : ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: _wsService!.members.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 12),
+                            separatorBuilder: (_, _) => const SizedBox(width: 12),
                             itemBuilder: (ctx, idx) {
                               final member = _wsService!.members[idx];
                               final isUserSpeaking =
@@ -331,12 +420,40 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
               ),
             ),
 
-            const SizedBox(height: 36),
+            if (_wsService!.echoMode)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: WalkieTheme.primaryAmber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: WalkieTheme.primaryAmber.withValues(alpha: 0.5)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.repeat_rounded, size: 14, color: WalkieTheme.primaryAmber),
+                    SizedBox(width: 6),
+                    Text(
+                      'ECHO TEST ACTIVE (Hearing Yourself)',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: WalkieTheme.primaryAmber,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-            // 4. Large Push-To-Talk Button
+            const SizedBox(height: 12),
+
+            // 4. Large Push-To-Talk Button (Instant touch reaction)
             Center(
               child: GestureDetector(
-                onLongPressStart: (_) {
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (_) {
                   if (isConnected && !isBusy) {
                     HapticFeedback.heavyImpact();
                     _wsService!.startPTT();
@@ -344,17 +461,25 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     HapticFeedback.vibrate();
                   }
                 },
-                onLongPressEnd: (_) {
+                onTapUp: (_) {
                   if (_wsService!.isSpeaking) {
                     HapticFeedback.lightImpact();
+                    _wsService!.stopPTT();
+                  }
+                },
+                onTapCancel: () {
+                  if (_wsService!.isSpeaking) {
                     _wsService!.stopPTT();
                   }
                 },
                 child: AnimatedBuilder(
                   animation: _pulseAnimation,
                   builder: (context, child) {
+                    final scale = isTransmitting
+                        ? (1.0 + (_wsService!.micLevel * 0.15) + (_pulseAnimation.value - 1.0))
+                        : 1.0;
                     return Transform.scale(
-                      scale: isTransmitting ? _pulseAnimation.value : 1.0,
+                      scale: scale,
                       child: child,
                     );
                   },
@@ -372,20 +497,20 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                         color: isTransmitting
                             ? WalkieTheme.primaryAmberLight
                             : (isBusy
-                                ? WalkieTheme.alertCrimson.withOpacity(0.5)
+                                ? WalkieTheme.alertCrimson.withValues(alpha: 0.5)
                                 : WalkieTheme.surfaceCardBorder),
                         width: isTransmitting ? 4 : 2,
                       ),
                       boxShadow: [
                         if (isTransmitting)
                           BoxShadow(
-                            color: WalkieTheme.primaryAmber.withOpacity(0.4),
+                            color: WalkieTheme.primaryAmber.withValues(alpha: 0.45),
                             blurRadius: 36,
                             spreadRadius: 8,
                           ),
                         if (isBusy)
                           BoxShadow(
-                            color: WalkieTheme.readyEmerald.withOpacity(0.2),
+                            color: WalkieTheme.readyEmerald.withValues(alpha: 0.2),
                             blurRadius: 20,
                           ),
                       ],
@@ -428,6 +553,76 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
               ),
             ),
 
+            const SizedBox(height: 16),
+
+            // Live Audio Transmission & Reception Status
+            if (isTransmitting)
+              Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: WalkieTheme.alertCrimson,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'LIVE STREAMING • ${_wsService!.packetsSent} FRAMES SENT',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.bold,
+                          color: WalkieTheme.primaryAmber,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Mic level meter
+                  Container(
+                    width: 140,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: WalkieTheme.surfaceCard,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    alignment: Alignment.centerLeft,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 60),
+                      width: (140 * (_wsService!.micLevel * 3.0).clamp(0.08, 1.0)),
+                      decoration: BoxDecoration(
+                        color: WalkieTheme.primaryAmber,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else if (isBusy)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.volume_up, size: 16, color: WalkieTheme.readyEmerald),
+                  const SizedBox(width: 6),
+                  Text(
+                    'RECEIVING AUDIO • ${_wsService!.packetsReceived} FRAMES',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      color: WalkieTheme.readyEmerald,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+
             const Spacer(),
             const SizedBox(height: 20),
           ],
@@ -445,7 +640,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isUserSpeaking
-            ? WalkieTheme.primaryAmber.withOpacity(0.2)
+            ? WalkieTheme.primaryAmber.withValues(alpha: 0.2)
             : WalkieTheme.surfaceLowest,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
