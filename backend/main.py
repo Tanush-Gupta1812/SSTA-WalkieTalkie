@@ -75,7 +75,6 @@ async def root():
     }
 
 @app.get("/health")
-@app.get("/walkie/health")
 async def health_check():
     return {
         "status": "healthy",

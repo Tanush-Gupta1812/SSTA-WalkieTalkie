@@ -1,0 +1,28 @@
+services:
+  walkie-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ssta-walkie-backend:latest
+    container_name: ssta-walkie-backend
+    restart: unless-stopped
+    ports:
+      # Dynamically binds to any port set via PORT env variable (defaults to 8000 if not specified)
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      - PORT=${PORT:-8000}
+      - HOST=0.0.0.0
+      - WALKIE_DB_PATH=/app/data/walkie.db
+    volumes:
+      # Persistent volume for SQLite database storage (channels, members, tokens)
+      - walkie_data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request, os; p = os.environ.get('PORT', '8000'); urllib.request.urlopen(f'http://localhost:{p}/health')\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  walkie_data:
+    name: ssta_walkie_data

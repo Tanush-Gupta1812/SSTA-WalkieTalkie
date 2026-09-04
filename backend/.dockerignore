@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+*.db
+test_walkie.db
+.venv
+venv
+cloudflared.exe
+ngrok.exe
+*.exe
+.git

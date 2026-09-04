@@ -171,3 +171,15 @@ async def test_update_user_display_name():
         m_resp2 = await client.get(f"/groups/{group_id}/members")
         assert m_resp2.json()[0]["display_name"] == "NewCallsign"
 
+@pytest.mark.asyncio
+async def test_root_and_health():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        r1 = await client.get("/")
+        assert r1.status_code == 200
+        assert r1.json()["status"] == "online"
+
+        r2 = await client.get("/health")
+        assert r2.status_code == 200
+        assert r2.json()["status"] == "healthy"
+
