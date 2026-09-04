@@ -62,13 +62,6 @@ class ActiveChannelSession extends ChangeNotifier {
       return;
     }
 
-    if (_activeGroup != null && _wsService != null) {
-      ForegroundManager.updateStatus(
-        channelName: _activeGroup!.name,
-        speakerName: _wsService!.activeSpeakerName,
-      );
-    }
-
     notifyListeners();
   }
 

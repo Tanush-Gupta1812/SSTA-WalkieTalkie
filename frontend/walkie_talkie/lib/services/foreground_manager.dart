@@ -49,6 +49,9 @@ class ForegroundManager {
     }
   }
 
+  static String? _lastTitle;
+  static String? _lastText;
+
   /// Start persistent foreground task with channel name
   static Future<void> start({
     required String channelName,
@@ -59,18 +62,27 @@ class ForegroundManager {
     try {
       await requestPermission();
 
+      final title = '📻 SSTA walkie: $channelName';
+      const text = 'Active in background • Tap to open';
+
       if (await FlutterForegroundTask.isRunningService) {
-        await FlutterForegroundTask.updateService(
-          notificationTitle: '📻 Walkie Talkie: $channelName',
-          notificationText: 'Live Audio Active • Tap to open',
-        );
+        if (_lastTitle != title || _lastText != text) {
+          _lastTitle = title;
+          _lastText = text;
+          await FlutterForegroundTask.updateService(
+            notificationTitle: title,
+            notificationText: text,
+          );
+        }
         return;
       }
 
+      _lastTitle = title;
+      _lastText = text;
       await FlutterForegroundTask.startService(
         serviceId: 256,
-        notificationTitle: '📻 Walkie Talkie: $channelName',
-        notificationText: 'Live Audio Active • Tap to open',
+        notificationTitle: title,
+        notificationText: text,
         callback: _dummyCallback,
       );
     } catch (e) {
@@ -78,7 +90,7 @@ class ForegroundManager {
     }
   }
 
-  /// Update notification status (e.g. when someone is actively transmitting)
+  /// Update notification status silently (only if text changes)
   static Future<void> updateStatus({
     required String channelName,
     String? speakerName,
@@ -86,12 +98,19 @@ class ForegroundManager {
     if (!Platform.isAndroid) return;
     try {
       if (await FlutterForegroundTask.isRunningService) {
+        final title = '📻 SSTA walkie: $channelName';
         final text = (speakerName != null && speakerName.isNotEmpty)
             ? '🎙️ $speakerName is speaking...'
-            : 'Live Audio Active • Tap to open';
+            : 'Active in background • Tap to open';
 
+        if (_lastTitle == title && _lastText == text) {
+          return;
+        }
+
+        _lastTitle = title;
+        _lastText = text;
         await FlutterForegroundTask.updateService(
-          notificationTitle: '📻 Walkie Talkie: $channelName',
+          notificationTitle: title,
           notificationText: text,
         );
       }
@@ -102,6 +121,8 @@ class ForegroundManager {
 
   /// Stop persistent foreground task
   static Future<void> stop() async {
+    _lastTitle = null;
+    _lastText = null;
     if (!Platform.isAndroid) return;
     try {
       if (await FlutterForegroundTask.isRunningService) {
