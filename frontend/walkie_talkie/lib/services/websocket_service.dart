@@ -19,13 +19,26 @@ class WebSocketService extends ChangeNotifier {
   late String _displayName;
   String get displayName => _displayName;
 
-  // In-memory transmission history (last 3 across all users combined)
+  // In-memory transmission history (last 3 across all users combined, stored purely on device)
   final List<Transmission> _transmissions = [];
   List<Transmission> get transmissions => List.unmodifiable(_transmissions);
   bool _isLoadingHistory = false;
   bool get isLoadingHistory => _isLoadingHistory;
   String? _currentlyPlayingTransmissionId;
   String? get currentlyPlayingTransmissionId => _currentlyPlayingTransmissionId;
+
+  // Local device in-memory audio buffers (zero server RAM used)
+  final List<int> _incomingTransmissionPcm = [];
+  final List<int> _outgoingTransmissionPcm = [];
+
+  void _addLocalTransmission(Transmission tx) {
+    _transmissions.removeWhere((t) => t.id == tx.id);
+    _transmissions.insert(0, tx);
+    if (_transmissions.length > 3) {
+      _transmissions.removeRange(3, _transmissions.length);
+    }
+    notifyListeners();
+  }
 
   WebSocketChannel? _channel;
   StreamSubscription? _channelSub;
@@ -138,23 +151,10 @@ class WebSocketService extends ChangeNotifier {
   }
 
   Future<void> loadHistory() async {
-    _isLoadingHistory = true;
+    // Audio transmissions are stored purely in local device memory (0 bytes on server RAM).
+    // Live transmissions heard or spoken on this device remain in _transmissions (up to 3).
+    _isLoadingHistory = false;
     notifyListeners();
-    try {
-      final list = await ApiService.getGroupAudioHistory(groupId);
-      _transmissions.clear();
-      for (var item in list) {
-        _transmissions.add(Transmission.fromJson(item as Map<String, dynamic>));
-      }
-      if (_transmissions.length > 3) {
-        _transmissions.removeRange(3, _transmissions.length);
-      }
-    } catch (e) {
-      debugPrint('Error loading audio history: $e');
-    } finally {
-      _isLoadingHistory = false;
-      notifyListeners();
-    }
   }
 
   bool _stopReplayRequested = false;
@@ -194,9 +194,19 @@ class WebSocketService extends ChangeNotifier {
       playStartChirp();
       await Future.delayed(const Duration(milliseconds: 110));
 
-      final pcmBytes = await ApiService.getTransmissionRawPcm(tx.id);
-      if (pcmBytes.isNotEmpty && !_stopReplayRequested) {
-        _playAudioChunk(Uint8List.fromList(pcmBytes));
+      // Replay directly from local in-memory PCM bytes (zero server network or RAM)
+      Uint8List? pcmBytes = tx.pcmBytes;
+      if ((pcmBytes == null || pcmBytes.isEmpty)) {
+        try {
+          final fetched = await ApiService.getTransmissionRawPcm(tx.id);
+          if (fetched.isNotEmpty) {
+            pcmBytes = Uint8List.fromList(fetched);
+          }
+        } catch (_) {}
+      }
+
+      if (pcmBytes != null && pcmBytes.isNotEmpty && !_stopReplayRequested) {
+        _playAudioChunk(pcmBytes);
         _drainPlaybackQueue();
         final durationMs = (tx.durationSeconds * 1000).round();
         const stepMs = 50;
@@ -330,6 +340,7 @@ class WebSocketService extends ChangeNotifier {
       }
     } else if (message is List<int>) {
       // Binary audio frame from another speaking member
+      _incomingTransmissionPcm.addAll(message);
       _playAudioChunk(Uint8List.fromList(message));
     }
   }
@@ -394,6 +405,8 @@ class WebSocketService extends ChangeNotifier {
         if (uId == userId) {
           _isSpeaking = true;
         } else {
+          // Reset incoming transmission PCM buffer for new transmission
+          _incomingTransmissionPcm.clear();
           // Play classic walkie-talkie opening chirp before incoming voice begins
           playStartChirp();
         }
@@ -409,18 +422,27 @@ class WebSocketService extends ChangeNotifier {
         } else {
           // Play classic walkie-talkie roger beep + squelch tail when incoming transmission ends
           playEndRogerBeep();
-        }
-        // If a new transmission was recorded, prepend to history (max 3)
-        if (data['transmission'] != null) {
-          try {
-            final tx = Transmission.fromJson(data['transmission'] as Map<String, dynamic>);
-            _transmissions.removeWhere((t) => t.id == tx.id);
-            _transmissions.insert(0, tx);
-            if (_transmissions.length > 3) {
-              _transmissions.removeRange(3, _transmissions.length);
-            }
-          } catch (e) {
-            debugPrint('Error parsing transmission event: $e');
+
+          // Save received audio directly into client device RAM (max 3 transmissions across all users)
+          if (_incomingTransmissionPcm.isNotEmpty) {
+            final pcmData = Uint8List.fromList(_incomingTransmissionPcm);
+            _incomingTransmissionPcm.clear();
+            final durationSec = (data['duration_seconds'] as num?)?.toDouble() ??
+                (pcmData.lengthInBytes / (AppConfig.sampleRate * 2 * AppConfig.channels));
+            final dName = _activeSpeakerNames[uId] ??
+                _members.firstWhere((m) => m.userId == uId, orElse: () => Member(userId: uId, displayName: 'Operator')).displayName;
+
+            final localTx = Transmission(
+              id: 'rx_${DateTime.now().millisecondsSinceEpoch}_$uId',
+              groupId: groupId,
+              userId: uId,
+              displayName: dName,
+              durationSeconds: durationSec > 0 ? durationSec : 1.0,
+              timestamp: DateTime.now().millisecondsSinceEpoch / 1000.0,
+              sizeBytes: pcmData.lengthInBytes,
+              pcmBytes: pcmData,
+            );
+            _addLocalTransmission(localTx);
           }
         }
         // Drain any remaining playback queue
@@ -552,8 +574,12 @@ class WebSocketService extends ChangeNotifier {
       );
 
       _audioBuffer.clear();
+      _outgoingTransmissionPcm.clear();
       _recordSub = audioStream.listen((chunk) {
         if (!_isSpeaking) return;
+
+        // Cache PCM chunk locally for on-device replay
+        _outgoingTransmissionPcm.addAll(chunk);
 
         // Calculate peak amplitude from 16-bit PCM for live visual soundwave
         double peak = 0.0;
@@ -594,6 +620,24 @@ class WebSocketService extends ChangeNotifier {
       _channel?.sink.add(Uint8List.fromList(_audioBuffer));
       _packetsSent++;
       _audioBuffer.clear();
+    }
+
+    // Cache user's own transmission to local device RAM (last 3 transmissions across all users)
+    if (_outgoingTransmissionPcm.isNotEmpty) {
+      final pcmData = Uint8List.fromList(_outgoingTransmissionPcm);
+      _outgoingTransmissionPcm.clear();
+      final durationSec = pcmData.lengthInBytes / (AppConfig.sampleRate * 2 * AppConfig.channels);
+      final localTx = Transmission(
+        id: 'tx_${DateTime.now().millisecondsSinceEpoch}_$userId',
+        groupId: groupId,
+        userId: userId,
+        displayName: '$_displayName (You)',
+        durationSeconds: durationSec > 0 ? durationSec : 1.0,
+        timestamp: DateTime.now().millisecondsSinceEpoch / 1000.0,
+        sizeBytes: pcmData.lengthInBytes,
+        pcmBytes: pcmData,
+      );
+      _addLocalTransmission(localTx);
     }
 
     // Play local end roger beep & squelch on PTT release

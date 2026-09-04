@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class Transmission {
   final String id;
   final String groupId;
@@ -6,6 +8,7 @@ class Transmission {
   final double durationSeconds;
   final double timestamp;
   final int sizeBytes;
+  final Uint8List? pcmBytes;
 
   Transmission({
     required this.id,
@@ -15,6 +18,7 @@ class Transmission {
     required this.durationSeconds,
     required this.timestamp,
     required this.sizeBytes,
+    this.pcmBytes,
   });
 
   factory Transmission.fromJson(Map<String, dynamic> json) {

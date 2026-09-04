@@ -416,7 +416,6 @@ async def websocket_group_endpoint(
     is_echo_enabled = echo
     audio_frame_count = 0
     total_audio_bytes = 0
-    transmission_buffer = bytearray()
     ptt_start_time = 0.0
     import time
     last_log_time = 0.0
@@ -439,7 +438,6 @@ async def websocket_group_endpoint(
                         if acquired:
                             audio_frame_count = 0
                             total_audio_bytes = 0
-                            transmission_buffer.clear()
                             ptt_start_time = time.time()
                             logger.info(f"🎙️ [PTT ON] '{display_name}' started transmitting (group: {group_id}, echo={is_echo_enabled})")
                             # Notify everyone that this user started speaking
@@ -463,24 +461,13 @@ async def websocket_group_endpoint(
                         if released:
                             duration = max(0.2, time.time() - ptt_start_time)
                             logger.info(f"🛑 [PTT OFF] '{display_name}' stopped transmitting (sent {total_audio_bytes} bytes across {audio_frame_count} frames, {duration:.1f}s)")
-                            
-                            # Save to in-memory history (last 5 per user) if audio was actually transmitted
-                            saved_msg = None
-                            if len(transmission_buffer) > 0:
-                                saved_msg = audio_history.add_message(
-                                    group_id=group_id,
-                                    user_id=user_id,
-                                    display_name=display_name,
-                                    raw_pcm=bytes(transmission_buffer),
-                                    duration_seconds=duration,
-                                )
 
                             await manager.broadcast_json(group_id, {
                                 "type": "ptt_stopped",
                                 "user_id": user_id,
-                                "transmission": saved_msg.to_dict() if saved_msg else None
+                                "display_name": display_name,
+                                "duration_seconds": round(duration, 1)
                             })
-                            transmission_buffer.clear()
 
                     elif msg_type == "update_display_name":
                         new_name = str(data.get("display_name", "")).strip()
@@ -500,7 +487,6 @@ async def websocket_group_endpoint(
                 if manager.is_speaking(group_id, user_id):
                     audio_frame_count += 1
                     total_audio_bytes += len(audio_bytes)
-                    transmission_buffer.extend(audio_bytes)
                     now = time.time()
                     exclude_id = None if is_echo_enabled else user_id
                     listeners = await manager.broadcast_bytes(group_id, audio_bytes, exclude_user_id=exclude_id)

@@ -1030,7 +1030,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     ],
                   ),
                   const Text(
-                    'Last 3 voice transmissions retained in RAM (all speakers combined).',
+                    'Last 3 transmissions cached locally on device. Zero audio stored on server.',
                     style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
                   ),
                   const Divider(color: WalkieTheme.surfaceCardBorder, height: 24),
@@ -1049,13 +1049,14 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                             Icon(Icons.graphic_eq_rounded, size: 48, color: WalkieTheme.textTertiary),
                             SizedBox(height: 12),
                             Text(
-                              'No recent transmissions',
+                              'No live transmissions yet',
                               style: TextStyle(color: WalkieTheme.textSecondary, fontWeight: FontWeight.bold),
                             ),
                             SizedBox(height: 4),
                             Text(
-                              'Voice messages spoken in this channel will appear here.',
+                              'Transmissions you hear or speak will be cached locally on-device for instant replay.',
                               style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
+                              textAlign: TextAlign.center,
                             ),
                           ],
                         ),
