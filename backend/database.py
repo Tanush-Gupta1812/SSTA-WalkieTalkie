@@ -13,6 +13,11 @@ async def get_db():
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
+        # High-performance concurrent settings: non-blocking WAL mode + lower disk sync overhead
+        await db.execute("PRAGMA journal_mode=WAL;")
+        await db.execute("PRAGMA synchronous=NORMAL;")
+        await db.execute("PRAGMA busy_timeout=5000;")
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS groups (
                 id TEXT PRIMARY KEY,
@@ -31,4 +36,8 @@ async def init_db():
                 FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
             )
         """)
+        # Indexes for O(1) channel queries and member listings
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_members_user_id ON members(user_id);")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_groups_join_token ON groups(join_token);")
         await db.commit()
+

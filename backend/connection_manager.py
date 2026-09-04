@@ -104,34 +104,64 @@ class ConnectionManager:
 
     async def broadcast_bytes(self, group_id: str, data: bytes, exclude_user_id: Optional[str] = None) -> int:
         """
-        Relays binary audio chunks to connected sockets in the group.
-        Returns the number of recipients audio was delivered to.
+        Relays binary audio chunks to connected sockets in the group concurrently.
+        Dead connections are pruned automatically to eliminate CPU waste and log spam.
         """
-        sent_count = 0
-        connections = list(self.active_connections.get(group_id, {}).items())
-        for u_id, ws in connections:
+        connections = self.active_connections.get(group_id)
+        if not connections:
+            return 0
+
+        tasks = []
+        for u_id, ws in list(connections.items()):
             if u_id == exclude_user_id:
                 continue
-            try:
-                await ws.send_bytes(data)
+            tasks.append((u_id, ws.send_bytes(data)))
+
+        if not tasks:
+            return 0
+
+        results = await asyncio.gather(*(t[1] for t in tasks), return_exceptions=True)
+        sent_count = 0
+        dead_users = []
+        for (u_id, _), res in zip(tasks, results):
+            if isinstance(res, Exception):
+                dead_users.append(u_id)
+            else:
                 sent_count += 1
-            except Exception as e:
-                logger.warning(f"Failed to send audio chunk to user {u_id}: {e}")
+
+        if dead_users:
+            for du in dead_users:
+                asyncio.create_task(self.disconnect(group_id, du))
+
         return sent_count
 
     async def broadcast_json(self, group_id: str, payload: dict, exclude_user_id: Optional[str] = None):
         """
-        Broadcasts a JSON control message to all sockets in the group.
+        Broadcasts a JSON control message to all sockets in the group concurrently.
         """
-        connections = list(self.active_connections.get(group_id, {}).items())
+        connections = self.active_connections.get(group_id)
+        if not connections:
+            return
+
         text_data = json.dumps(payload)
-        for u_id, ws in connections:
+        tasks = []
+        for u_id, ws in list(connections.items()):
             if u_id == exclude_user_id:
                 continue
-            try:
-                await ws.send_text(text_data)
-            except Exception as e:
-                logger.warning(f"Failed to send JSON to user {u_id}: {e}")
+            tasks.append((u_id, ws.send_text(text_data)))
+
+        if not tasks:
+            return
+
+        results = await asyncio.gather(*(t[1] for t in tasks), return_exceptions=True)
+        dead_users = []
+        for (u_id, _), res in zip(tasks, results):
+            if isinstance(res, Exception):
+                dead_users.append(u_id)
+
+        if dead_users:
+            for du in dead_users:
+                asyncio.create_task(self.disconnect(group_id, du))
 
     async def send_initial_state(self, group_id: str, user_id: str, websocket: WebSocket):
         """
