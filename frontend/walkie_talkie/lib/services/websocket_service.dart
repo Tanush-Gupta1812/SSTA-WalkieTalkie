@@ -8,6 +8,7 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import '../config.dart';
 import '../models/member.dart';
 import '../models/transmission.dart';
+import '../utils/radio_sound_effects.dart';
 import 'api_service.dart';
 
 enum ConnectionStatus { disconnected, connecting, connected }
@@ -155,6 +156,30 @@ class WebSocketService extends ChangeNotifier {
 
   bool _stopReplayRequested = false;
 
+  /// Play classic walkie-talkie radio key-up opening chirp
+  void playStartChirp() {
+    if (!_soundInitialized || !_isPoweredOn) return;
+    try {
+      final pcmBytes = RadioSoundEffects.generateStartChirp();
+      final bd = pcmBytes.buffer.asByteData(pcmBytes.offsetInBytes, pcmBytes.lengthInBytes);
+      FlutterPcmSound.feed(PcmArrayInt16(bytes: bd));
+    } catch (e) {
+      debugPrint('Error playing start chirp: $e');
+    }
+  }
+
+  /// Play classic walkie-talkie roger beep and squelch tail ("BEEP - ksh")
+  void playEndRogerBeep() {
+    if (!_soundInitialized || !_isPoweredOn) return;
+    try {
+      final pcmBytes = RadioSoundEffects.generateEndRogerBeep();
+      final bd = pcmBytes.buffer.asByteData(pcmBytes.offsetInBytes, pcmBytes.lengthInBytes);
+      FlutterPcmSound.feed(PcmArrayInt16(bytes: bd));
+    } catch (e) {
+      debugPrint('Error playing end roger beep: $e');
+    }
+  }
+
   Future<void> replayTransmission(Transmission tx) async {
     if (_currentlyPlayingTransmissionId != null) return;
     _currentlyPlayingTransmissionId = tx.id;
@@ -162,6 +187,10 @@ class WebSocketService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 1. Play opening radio chirp before audio
+      playStartChirp();
+      await Future.delayed(const Duration(milliseconds: 110));
+
       final pcmBytes = await ApiService.getTransmissionRawPcm(tx.id);
       if (pcmBytes.isNotEmpty && !_stopReplayRequested) {
         _playAudioChunk(Uint8List.fromList(pcmBytes));
@@ -172,6 +201,12 @@ class WebSocketService extends ChangeNotifier {
         while (elapsed < durationMs && !_stopReplayRequested) {
           await Future.delayed(const Duration(milliseconds: stepMs));
           elapsed += stepMs;
+        }
+
+        // 2. Play ending roger beep after audio finishes
+        if (!_stopReplayRequested) {
+          playEndRogerBeep();
+          await Future.delayed(const Duration(milliseconds: 120));
         }
       }
     } catch (e) {
@@ -354,6 +389,9 @@ class WebSocketService extends ChangeNotifier {
         _activeSpeakerNames[uId] = resolvedName;
         if (uId == userId) {
           _isSpeaking = true;
+        } else {
+          // Play classic walkie-talkie opening chirp before incoming voice begins
+          playStartChirp();
         }
         notifyListeners();
         break;
@@ -364,6 +402,9 @@ class WebSocketService extends ChangeNotifier {
         _activeSpeakerNames.remove(uId);
         if (uId == userId) {
           _isSpeaking = false;
+        } else {
+          // Play classic walkie-talkie roger beep + squelch tail when incoming transmission ends
+          playEndRogerBeep();
         }
         // If a new transmission was recorded, prepend to history
         if (data['transmission'] != null) {
@@ -547,6 +588,9 @@ class WebSocketService extends ChangeNotifier {
       _packetsSent++;
       _audioBuffer.clear();
     }
+
+    // Play local end roger beep & squelch on PTT release
+    playEndRogerBeep();
 
     // Send ptt_stop signal
     _channel?.sink.add(jsonEncode({'type': 'ptt_stop'}));
