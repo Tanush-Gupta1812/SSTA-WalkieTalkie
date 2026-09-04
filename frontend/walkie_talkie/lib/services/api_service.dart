@@ -195,14 +195,15 @@ class ApiService {
     required String displayName,
   }) {
     return _withRetry(() async {
-      final uri = Uri.parse('${AppConfig.httpBaseUrl}/users/$userId');
-      final response = await http
-          .put(
-            uri,
-            headers: _headers,
-            body: jsonEncode({'display_name': displayName}),
-          )
-          .timeout(_timeout);
+      final body = jsonEncode({'display_name': displayName});
+      // Prefer /walkie/users first to avoid route collisions with host app endpoints
+      final uri = Uri.parse('${AppConfig.httpBaseUrl}/walkie/users/$userId');
+      var response = await http.put(uri, headers: _headers, body: body).timeout(_timeout);
+
+      if (response.statusCode == 404) {
+        final fallbackUri = Uri.parse('${AppConfig.httpBaseUrl}/users/$userId');
+        response = await http.put(fallbackUri, headers: _headers, body: body).timeout(_timeout);
+      }
 
       if (response.statusCode != 200) {
         throw Exception('Failed to update display name: ${response.body}');

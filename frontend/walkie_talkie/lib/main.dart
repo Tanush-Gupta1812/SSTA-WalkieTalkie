@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'screens/groups_list_screen.dart';
 import 'theme.dart';
 
+import 'config.dart';
 import 'services/foreground_manager.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.loadCache();
   ForegroundManager.init();
   runApp(const WalkieApp());
 }

@@ -339,7 +339,12 @@ async def rename_group(
         created_at=str(row["created_at"])
     )
 
+@app.put("/walkie/users/{user_id}", response_model=UpdateUserResponse)
+@app.patch("/walkie/users/{user_id}", response_model=UpdateUserResponse)
+@app.put("/walkie/users/{user_id}/display_name", response_model=UpdateUserResponse)
+@app.patch("/walkie/users/{user_id}/display_name", response_model=UpdateUserResponse)
 @app.put("/users/{user_id}", response_model=UpdateUserResponse)
+@app.patch("/users/{user_id}", response_model=UpdateUserResponse)
 async def update_user(
     user_id: str,
     payload: UpdateUserRequest,
@@ -378,20 +383,34 @@ async def websocket_group_endpoint(
     # Verify that user is a member of this channel (joined via QR code / Join Token)
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        # 1. Verify channel exists on this server
+        cur = await db.execute("SELECT name FROM groups WHERE id = ?", (group_id,))
+        group_row = await cur.fetchone()
+        if not group_row:
+            await websocket.accept()
+            import json
+            await websocket.send_text(json.dumps({
+                "type": "group_deleted",
+                "message": "This channel does not exist on this server."
+            }))
+            await websocket.close(code=4004, reason="Group not found")
+            return
+
+        # 2. Ensure member is registered in channel
         cur = await db.execute(
             "SELECT 1 FROM members WHERE group_id = ? AND user_id = ?",
             (group_id, user_id)
         )
-        is_member = await cur.fetchone()
-        if not is_member:
-            await websocket.accept()
-            import json
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "message": "Access denied: You must join this channel via QR code or Join Code first."
-            }))
-            await websocket.close(code=4003, reason="Forbidden: Not a channel member")
-            return
+        if not await cur.fetchone():
+            await db.execute(
+                """
+                INSERT INTO members (group_id, user_id, display_name)
+                VALUES (?, ?, ?)
+                ON CONFLICT(group_id, user_id) DO UPDATE SET display_name = excluded.display_name
+                """,
+                (group_id, user_id, display_name)
+            )
+            await db.commit()
 
     await manager.connect(group_id, user_id, display_name, websocket)
     is_echo_enabled = echo

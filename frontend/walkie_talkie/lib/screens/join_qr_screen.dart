@@ -26,7 +26,18 @@ class _JoinQrScreenState extends State<JoinQrScreen> {
   }
 
   Future<void> _joinWithToken(String token) async {
-    final cleanToken = token.trim().toUpperCase();
+    var cleanToken = token.trim();
+    if (cleanToken.contains('token=')) {
+      final uri = Uri.tryParse(cleanToken);
+      if (uri != null && uri.queryParameters.containsKey('token')) {
+        cleanToken = uri.queryParameters['token']!;
+      } else if (uri != null && uri.queryParameters.containsKey('join_token')) {
+        cleanToken = uri.queryParameters['join_token']!;
+      }
+    } else if (cleanToken.contains(':')) {
+      cleanToken = cleanToken.split(':').last;
+    }
+    cleanToken = cleanToken.trim().toUpperCase();
     if (cleanToken.isEmpty || _isJoining) return;
 
     setState(() => _isJoining = true);

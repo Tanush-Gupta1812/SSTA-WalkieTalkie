@@ -621,6 +621,7 @@ class WebSocketService extends ChangeNotifier {
     _disposed = true;
     _reconnectTimer?.cancel();
     _stopRecording();
+    _audioRecorder.dispose();
     _channelSub?.cancel();
     _channel?.sink.close();
     super.dispose();

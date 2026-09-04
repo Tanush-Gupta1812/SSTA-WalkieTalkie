@@ -453,33 +453,41 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                             ),
                           ),
                         )
-                      : _groups.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.lock_outline_rounded, size: 56, color: WalkieTheme.textTertiary.withValues(alpha: 0.4)),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'No channels joined yet',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: WalkieTheme.textSecondary,
+                      : RefreshIndicator(
+                          color: WalkieTheme.primaryAmber,
+                          backgroundColor: WalkieTheme.surfaceCardElevated,
+                          onRefresh: _loadData,
+                          child: _groups.isEmpty
+                              ? ListView(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  children: [
+                                    SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                                    Icon(Icons.lock_outline_rounded, size: 56, color: WalkieTheme.textTertiary.withValues(alpha: 0.4)),
+                                    const SizedBox(height: 16),
+                                    const Center(
+                                      child: Text(
+                                        'No channels joined yet',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: WalkieTheme.textSecondary,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Channels are private. Scan a QR code\nor enter a 6-digit Join Code to connect.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 13, color: WalkieTheme.textTertiary),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                              itemCount: _groups.length,
+                                    const SizedBox(height: 6),
+                                    const Center(
+                                      child: Text(
+                                        'Channels are private. Scan a QR code\nor enter a 6-digit Join Code to connect.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(fontSize: 13, color: WalkieTheme.textTertiary),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : ListView.separated(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                  itemCount: _groups.length,
                               separatorBuilder: (_, _) => const SizedBox(height: 12),
                               itemBuilder: (ctx, idx) {
                                 final group = _groups[idx];
@@ -618,6 +626,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                                 );
                               },
                             ),
+                          ),
             ),
           ],
         ),
