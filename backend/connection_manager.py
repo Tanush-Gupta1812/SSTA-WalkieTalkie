@@ -34,12 +34,12 @@ class ConnectionManager:
 
         logger.info(f"User '{display_name}' ({user_id}) joined group {group_id}")
 
-        # Broadcast user_joined event to all members in group
+        # Broadcast user_joined event to other members in group
         await self.broadcast_json(group_id, {
             "type": "user_joined",
             "user_id": user_id,
             "display_name": display_name
-        })
+        }, exclude_user_id=user_id)
 
         # Send initial state to the newly connected user
         await self.send_initial_state(group_id, user_id, websocket)
