@@ -269,72 +269,6 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
     }
   }
 
-  void _configureServerHost() {
-    final controller = TextEditingController(
-      text: AppConfig.customUrlOrHost.isNotEmpty
-          ? AppConfig.customUrlOrHost
-          : AppConfig.effectiveHost,
-    );
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: WalkieTheme.surfaceCardElevated,
-        title: const Text('Backend Server Connection'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enter your FastAPI server URL or IP.\nFor different networks, paste your tunnel URL (e.g. https://xxx.trycloudflare.com):',
-              style: TextStyle(fontSize: 13, color: WalkieTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: WalkieTheme.textPrimary),
-              decoration: const InputDecoration(
-                hintText: 'https://xxx.trycloudflare.com or 192.168.1.15',
-                hintStyle: TextStyle(color: WalkieTheme.textTertiary, fontSize: 13),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await AppConfig.setManualUrl(null);
-              await UserService.saveServerUrl('');
-              await AppConfig.discover();
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              _loadData();
-            },
-            child: const Text('Auto-Discover', style: TextStyle(color: WalkieTheme.primaryAmber)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newUrl = controller.text.trim();
-              if (newUrl.isEmpty) {
-                await AppConfig.setManualUrl(null);
-                await UserService.saveServerUrl('');
-                await AppConfig.discover();
-              } else {
-                await AppConfig.setManualUrl(newUrl);
-                await UserService.saveServerUrl(newUrl);
-              }
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              _loadData();
-            },
-            child: const Text('Connect'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -355,11 +289,6 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_ethernet_rounded),
-            tooltip: 'Server Config',
-            onPressed: _configureServerHost,
-          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
@@ -519,11 +448,6 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                                 ElevatedButton(
                                   onPressed: _loadData,
                                   child: const Text('Retry Connection'),
-                                ),
-                                const SizedBox(height: 8),
-                                TextButton(
-                                  onPressed: _configureServerHost,
-                                  child: const Text('Change Server IP'),
                                 ),
                               ],
                             ),

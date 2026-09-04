@@ -19,7 +19,7 @@ class WebSocketService extends ChangeNotifier {
   late String _displayName;
   String get displayName => _displayName;
 
-  // In-memory transmission history (last 5 per user)
+  // In-memory transmission history (last 3 across all users combined)
   final List<Transmission> _transmissions = [];
   List<Transmission> get transmissions => List.unmodifiable(_transmissions);
   bool _isLoadingHistory = false;
@@ -145,6 +145,9 @@ class WebSocketService extends ChangeNotifier {
       _transmissions.clear();
       for (var item in list) {
         _transmissions.add(Transmission.fromJson(item as Map<String, dynamic>));
+      }
+      if (_transmissions.length > 3) {
+        _transmissions.removeRange(3, _transmissions.length);
       }
     } catch (e) {
       debugPrint('Error loading audio history: $e');
@@ -406,12 +409,15 @@ class WebSocketService extends ChangeNotifier {
           // Play classic walkie-talkie roger beep + squelch tail when incoming transmission ends
           playEndRogerBeep();
         }
-        // If a new transmission was recorded, prepend to history
+        // If a new transmission was recorded, prepend to history (max 3)
         if (data['transmission'] != null) {
           try {
             final tx = Transmission.fromJson(data['transmission'] as Map<String, dynamic>);
             _transmissions.removeWhere((t) => t.id == tx.id);
             _transmissions.insert(0, tx);
+            if (_transmissions.length > 3) {
+              _transmissions.removeRange(3, _transmissions.length);
+            }
           } catch (e) {
             debugPrint('Error parsing transmission event: $e');
           }

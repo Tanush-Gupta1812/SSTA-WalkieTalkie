@@ -445,7 +445,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                   ),
               ],
             ),
-            tooltip: 'Audio History (Last 5 per user)',
+            tooltip: 'Audio History (Last 3 transmissions)',
             onPressed: _showHistorySheet,
           ),
           IconButton(
@@ -1030,7 +1030,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     ],
                   ),
                   const Text(
-                    'Last 5 voice transmissions retained per speaker in RAM.',
+                    'Last 3 voice transmissions retained in RAM (all speakers combined).',
                     style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
                   ),
                   const Divider(color: WalkieTheme.surfaceCardBorder, height: 24),
