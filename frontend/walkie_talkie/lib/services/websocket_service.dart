@@ -53,6 +53,12 @@ class WebSocketService extends ChangeNotifier {
   bool _isSpeaking = false;
   bool get isSpeaking => _isSpeaking;
 
+  // Immediate synchronous touch state for zero-latency UI reaction
+  bool _wantsToSpeak = false;
+  bool get wantsToSpeak => _wantsToSpeak;
+  bool _hasMicPermission = false;
+  bool _isPttStarting = false;
+
   final Set<String> _activeSpeakerIds = {};
   Set<String> get activeSpeakerIds => Set.unmodifiable(_activeSpeakerIds);
 
@@ -249,6 +255,10 @@ class WebSocketService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error initializing FlutterPcmSound: $e');
     }
+    // Pre-warm mic permission asynchronously on startup
+    try {
+      _hasMicPermission = await _audioRecorder.hasPermission();
+    } catch (_) {}
   }
 
   void togglePower() {
@@ -543,28 +553,58 @@ class WebSocketService extends ChangeNotifier {
 
   /// Request Push-to-Talk lock from server and start mic streaming
   Future<void> startPTT() async {
-    if (_status != ConnectionStatus.connected || isChannelBusy || _isSpeaking) {
-      return;
-    }
-
-    final hasPerm = await _audioRecorder.hasPermission();
-    if (!hasPerm) {
-      debugPrint('Microphone permission denied.');
-      return;
-    }
-
-    // 1. Send ptt_start signal with echo preference
-    _channel?.sink.add(jsonEncode({
-      'type': 'ptt_start',
-      'echo': _echoMode,
-    }));
-    _isSpeaking = true;
-    _packetsSent = 0;
-    _micLevel = 0.0;
+    _wantsToSpeak = true;
     notifyListeners();
 
-    // 2. Start recording stream (PCM 16-bit 16kHz mono)
+    if (_status != ConnectionStatus.connected || !_isPoweredOn) {
+      return;
+    }
+
+    if (_isSpeaking || _isPttStarting) {
+      return;
+    }
+
+    _isPttStarting = true;
     try {
+      if (!_hasMicPermission) {
+        _hasMicPermission = await _audioRecorder.hasPermission();
+        if (!_hasMicPermission) {
+          debugPrint('Microphone permission denied.');
+          _wantsToSpeak = false;
+          notifyListeners();
+          return;
+        }
+      }
+
+      // If user released the button while permission was checking, abort immediately
+      if (!_wantsToSpeak) {
+        return;
+      }
+
+      // 1. Send ptt_start signal with echo preference
+      _channel?.sink.add(jsonEncode({
+        'type': 'ptt_start',
+        'echo': _echoMode,
+      }));
+      _isSpeaking = true;
+      _packetsSent = 0;
+      _micLevel = 0.0;
+      notifyListeners();
+
+      // Ensure any previous stream is completely stopped
+      try {
+        if (await _audioRecorder.isRecording()) {
+          await _audioRecorder.stop();
+        }
+      } catch (_) {}
+
+      // If user released the button in the meantime, stop immediately
+      if (!_wantsToSpeak) {
+        await stopPTT();
+        return;
+      }
+
+      // 2. Start recording stream (PCM 16-bit 16kHz mono)
       final audioStream = await _audioRecorder.startStream(
         const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
@@ -603,16 +643,28 @@ class WebSocketService extends ChangeNotifier {
       });
     } catch (e) {
       debugPrint('Error starting audio recorder stream: $e');
-      stopPTT();
+      _wantsToSpeak = false;
+      await stopPTT();
+    } finally {
+      _isPttStarting = false;
+      if (!_wantsToSpeak && _isSpeaking) {
+        await stopPTT();
+      }
     }
   }
 
   /// Stop mic recording and release Push-to-Talk lock
   Future<void> stopPTT() async {
-    if (!_isSpeaking) return;
+    _wantsToSpeak = false;
+    if (!_isSpeaking && !_isPttStarting) {
+      notifyListeners();
+      return;
+    }
 
     _isSpeaking = false;
     _micLevel = 0.0;
+    notifyListeners();
+
     await _stopRecording();
 
     // Flush any remaining buffered audio bytes

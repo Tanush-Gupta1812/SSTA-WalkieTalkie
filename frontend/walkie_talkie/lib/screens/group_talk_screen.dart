@@ -304,7 +304,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       );
     }
 
-    final isTransmitting = _wsService!.isSpeaking;
+    final isTransmitting = _wsService!.isSpeaking || _wsService!.wantsToSpeak;
     final otherSpeakers = _wsService!.otherActiveSpeakerNames;
     final isConnected = _wsService!.status == ConnectionStatus.connected;
     final isConnecting = _wsService!.status == ConnectionStatus.connecting;
@@ -699,28 +699,24 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
 
             const SizedBox(height: 12),
 
-            // 4. Large Push-To-Talk Button (Instant touch reaction)
+            // 4. Large Push-To-Talk Button (Instant 0ms hardware touch reaction via Listener)
             Center(
-              child: GestureDetector(
+              child: Listener(
                 behavior: HitTestBehavior.opaque,
-                onTapDown: (_) {
-                  if (isConnected) {
+                onPointerDown: (_) {
+                  if (isConnected && _wsService!.isPoweredOn) {
                     HapticFeedback.heavyImpact();
                     _wsService!.startPTT();
                   } else {
                     HapticFeedback.vibrate();
                   }
                 },
-                onTapUp: (_) {
-                  if (_wsService!.isSpeaking) {
-                    HapticFeedback.lightImpact();
-                    _wsService!.stopPTT();
-                  }
+                onPointerUp: (_) {
+                  HapticFeedback.lightImpact();
+                  _wsService!.stopPTT();
                 },
-                onTapCancel: () {
-                  if (_wsService!.isSpeaking) {
-                    _wsService!.stopPTT();
-                  }
+                onPointerCancel: (_) {
+                  _wsService!.stopPTT();
                 },
                 child: AnimatedBuilder(
                   animation: _pulseAnimation,
