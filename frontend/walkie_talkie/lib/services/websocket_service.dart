@@ -7,6 +7,8 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 
 import '../config.dart';
 import '../models/member.dart';
+import '../models/transmission.dart';
+import 'api_service.dart';
 
 enum ConnectionStatus { disconnected, connecting, connected }
 
@@ -14,6 +16,14 @@ class WebSocketService extends ChangeNotifier {
   final String groupId;
   final String userId;
   final String displayName;
+
+  // In-memory transmission history (last 5 per user)
+  final List<Transmission> _transmissions = [];
+  List<Transmission> get transmissions => List.unmodifiable(_transmissions);
+  bool _isLoadingHistory = false;
+  bool get isLoadingHistory => _isLoadingHistory;
+  String? _currentlyPlayingTransmissionId;
+  String? get currentlyPlayingTransmissionId => _currentlyPlayingTransmissionId;
 
   WebSocketChannel? _channel;
   StreamSubscription? _channelSub;
@@ -24,18 +34,27 @@ class WebSocketService extends ChangeNotifier {
   ConnectionStatus _status = ConnectionStatus.disconnected;
   ConnectionStatus get status => _status;
 
-  // PTT state
+  // Multi-speaker PTT state
   bool _isSpeaking = false;
   bool get isSpeaking => _isSpeaking;
 
-  String? _activeSpeakerId;
-  String? get activeSpeakerId => _activeSpeakerId;
+  final Set<String> _activeSpeakerIds = {};
+  Set<String> get activeSpeakerIds => Set.unmodifiable(_activeSpeakerIds);
 
-  String? _activeSpeakerName;
-  String? get activeSpeakerName => _activeSpeakerName;
+  final Map<String, String> _activeSpeakerNames = {};
+  Map<String, String> get activeSpeakerNames => Map.unmodifiable(_activeSpeakerNames);
 
-  bool get isChannelBusy =>
-      _activeSpeakerId != null && _activeSpeakerId != userId;
+  // Other members currently speaking (excluding local user)
+  List<String> get otherActiveSpeakerNames => _activeSpeakerNames.entries
+      .where((e) => e.key != userId)
+      .map((e) => e.value)
+      .toList();
+
+  String? get activeSpeakerId => _activeSpeakerIds.isNotEmpty ? _activeSpeakerIds.first : null;
+  String? get activeSpeakerName => _activeSpeakerNames.isNotEmpty ? _activeSpeakerNames.values.first : null;
+
+  // With multi-speaker full duplex, channel is never locked/busy!
+  bool get isChannelBusy => false;
 
   // Solo Echo / Loopback mode
   bool _echoMode = false;
@@ -67,6 +86,22 @@ class WebSocketService extends ChangeNotifier {
   StreamSubscription<Uint8List>? _recordSub;
   List<int> _audioBuffer = [];
 
+  // Power State: active (transmitting & receiving) vs standby (power off)
+  bool _isPoweredOn = true;
+  bool get isPoweredOn => _isPoweredOn;
+
+  // Audio gain multiplier (boosts mic volume so other side hears clearly)
+  double _audioGain = 2.5;
+  double get audioGain => _audioGain;
+  set audioGain(double val) {
+    _audioGain = val;
+    notifyListeners();
+  }
+
+  // Jitter buffer queue for smooth audio playback
+  final List<Uint8List> _playbackQueue = [];
+  bool _isPlayingQueue = false;
+
   // Audio playback
   bool _soundInitialized = false;
 
@@ -77,6 +112,42 @@ class WebSocketService extends ChangeNotifier {
   }) {
     _initAudioPlayer();
     connect();
+    loadHistory();
+  }
+
+  Future<void> loadHistory() async {
+    _isLoadingHistory = true;
+    notifyListeners();
+    try {
+      final list = await ApiService.getGroupAudioHistory(groupId);
+      _transmissions.clear();
+      for (var item in list) {
+        _transmissions.add(Transmission.fromJson(item as Map<String, dynamic>));
+      }
+    } catch (e) {
+      debugPrint('Error loading audio history: $e');
+    } finally {
+      _isLoadingHistory = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> replayTransmission(Transmission tx) async {
+    if (_currentlyPlayingTransmissionId != null) return;
+    _currentlyPlayingTransmissionId = tx.id;
+    notifyListeners();
+
+    try {
+      final pcmBytes = await ApiService.getTransmissionRawPcm(tx.id);
+      if (pcmBytes.isNotEmpty) {
+        _playAudioChunk(Uint8List.fromList(pcmBytes));
+      }
+    } catch (e) {
+      debugPrint('Error replaying transmission: $e');
+    } finally {
+      _currentlyPlayingTransmissionId = null;
+      notifyListeners();
+    }
   }
 
   Future<void> _initAudioPlayer() async {
@@ -85,9 +156,33 @@ class WebSocketService extends ChangeNotifier {
         sampleRate: AppConfig.sampleRate,
         channelCount: AppConfig.channels,
       );
+      await FlutterPcmSound.setLogLevel(LogLevel.none);
       _soundInitialized = true;
     } catch (e) {
       debugPrint('Error initializing FlutterPcmSound: $e');
+    }
+  }
+
+  void togglePower() {
+    if (_isPoweredOn) {
+      // Power OFF -> Disconnect WS, release PTT, clear queues
+      _isPoweredOn = false;
+      if (_isSpeaking) {
+        stopPTT();
+      }
+      _playbackQueue.clear();
+      _channelSub?.cancel();
+      _channelSub = null;
+      _channel?.sink.close();
+      _channel = null;
+      _status = ConnectionStatus.disconnected;
+      _activeSpeakerIds.clear();
+      _activeSpeakerNames.clear();
+      notifyListeners();
+    } else {
+      // Power ON -> Connect WS, resume listening
+      _isPoweredOn = true;
+      connect();
     }
   }
 
@@ -133,8 +228,8 @@ class WebSocketService extends ChangeNotifier {
       _stopRecording();
       _isSpeaking = false;
     }
-    _activeSpeakerId = null;
-    _activeSpeakerName = null;
+    _activeSpeakerIds.clear();
+    _activeSpeakerNames.clear();
     notifyListeners();
 
     // Exponential backoff reconnect: 1s, 2s, 4s, max 8s
@@ -175,8 +270,16 @@ class WebSocketService extends ChangeNotifier {
             isOnline: true,
           ));
         }
-        _activeSpeakerId = data['active_speaker_id'] as String?;
-        _activeSpeakerName = data['active_speaker_name'] as String?;
+        _activeSpeakerIds.clear();
+        _activeSpeakerNames.clear();
+        final speakerIds = (data['active_speaker_ids'] as List<dynamic>?)?.cast<String>() ?? [];
+        final speakerNames = (data['active_speaker_names'] as List<dynamic>?)?.cast<String>() ?? [];
+        for (int i = 0; i < speakerIds.length; i++) {
+          final sId = speakerIds[i];
+          final sName = i < speakerNames.length ? speakerNames[i] : 'Speaker';
+          _activeSpeakerIds.add(sId);
+          _activeSpeakerNames[sId] = sName;
+        }
         notifyListeners();
         break;
 
@@ -198,18 +301,17 @@ class WebSocketService extends ChangeNotifier {
         if (index != -1) {
           _members[index] = _members[index].copyWith(isOnline: false);
         }
-        if (_activeSpeakerId == uId) {
-          _activeSpeakerId = null;
-          _activeSpeakerName = null;
-        }
+        _activeSpeakerIds.remove(uId);
+        _activeSpeakerNames.remove(uId);
         notifyListeners();
         break;
 
       case 'ptt_started':
         final uId = data['user_id'] as String;
         final dName = data['display_name'] as String?;
-        _activeSpeakerId = uId;
-        _activeSpeakerName = dName ?? (_members.firstWhere((m) => m.userId == uId, orElse: () => Member(userId: uId, displayName: 'Member')).displayName);
+        final resolvedName = dName ?? (_members.firstWhere((m) => m.userId == uId, orElse: () => Member(userId: uId, displayName: 'Member')).displayName);
+        _activeSpeakerIds.add(uId);
+        _activeSpeakerNames[uId] = resolvedName;
         if (uId == userId) {
           _isSpeaking = true;
         }
@@ -218,13 +320,23 @@ class WebSocketService extends ChangeNotifier {
 
       case 'ptt_stopped':
         final uId = data['user_id'] as String;
-        if (_activeSpeakerId == uId) {
-          _activeSpeakerId = null;
-          _activeSpeakerName = null;
-        }
+        _activeSpeakerIds.remove(uId);
+        _activeSpeakerNames.remove(uId);
         if (uId == userId) {
           _isSpeaking = false;
         }
+        // If a new transmission was recorded, prepend to history
+        if (data['transmission'] != null) {
+          try {
+            final tx = Transmission.fromJson(data['transmission'] as Map<String, dynamic>);
+            _transmissions.removeWhere((t) => t.id == tx.id);
+            _transmissions.insert(0, tx);
+          } catch (e) {
+            debugPrint('Error parsing transmission event: $e');
+          }
+        }
+        // Drain any remaining playback queue
+        _flushPlaybackQueue();
         notifyListeners();
         break;
 
@@ -245,17 +357,54 @@ class WebSocketService extends ChangeNotifier {
   }
 
   void _playAudioChunk(Uint8List pcmBytes) {
-    if (!_soundInitialized || pcmBytes.isEmpty) return;
+    if (!_soundInitialized || pcmBytes.isEmpty || !_isPoweredOn) return;
     try {
       _packetsReceived++;
       notifyListeners();
-      final byteData = pcmBytes.buffer.asByteData(
-        pcmBytes.offsetInBytes,
-        pcmBytes.lengthInBytes,
-      );
-      FlutterPcmSound.feed(PcmArrayInt16(bytes: byteData));
+
+      // Apply software digital gain to 16-bit PCM samples to boost volume
+      final amplified = Uint8List(pcmBytes.length);
+      final byteData = pcmBytes.buffer.asByteData(pcmBytes.offsetInBytes, pcmBytes.lengthInBytes);
+      final outByteData = amplified.buffer.asByteData();
+
+      for (int i = 0; i < pcmBytes.length - 1; i += 2) {
+        int sample = byteData.getInt16(i, Endian.little);
+        int boosted = (sample * _audioGain).round().clamp(-32768, 32767);
+        outByteData.setInt16(i, boosted, Endian.little);
+      }
+
+      // Add to playback queue
+      _playbackQueue.add(amplified);
+
+      // Start playing queue if not already running
+      if (!_isPlayingQueue) {
+        // Require at least 2 chunks (~80ms) for jitter resistance before starting
+        if (_playbackQueue.length >= 2) {
+          _drainPlaybackQueue();
+        }
+      }
     } catch (e) {
-      debugPrint('Error feeding audio to FlutterPcmSound: $e');
+      debugPrint('Error processing audio chunk: $e');
+    }
+  }
+
+  void _drainPlaybackQueue() {
+    _isPlayingQueue = true;
+    while (_playbackQueue.isNotEmpty) {
+      final chunk = _playbackQueue.removeAt(0);
+      try {
+        final bd = chunk.buffer.asByteData(chunk.offsetInBytes, chunk.lengthInBytes);
+        FlutterPcmSound.feed(PcmArrayInt16(bytes: bd));
+      } catch (e) {
+        debugPrint('Error feeding audio to FlutterPcmSound: $e');
+      }
+    }
+    _isPlayingQueue = false;
+  }
+
+  void _flushPlaybackQueue() {
+    if (_playbackQueue.isNotEmpty) {
+      _drainPlaybackQueue();
     }
   }
 

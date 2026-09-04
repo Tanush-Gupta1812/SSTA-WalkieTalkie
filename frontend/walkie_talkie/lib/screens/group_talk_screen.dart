@@ -7,6 +7,8 @@ import '../models/member.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
 import '../services/websocket_service.dart';
+import '../services/foreground_manager.dart';
+import '../services/active_channel_session.dart';
 import '../theme.dart';
 import 'qr_share_screen.dart';
 
@@ -45,14 +47,15 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
   }
 
   Future<void> _initSession() async {
-    // Request microphone permission on entering talk screen
+    // Request microphone and notification permissions on entering talk screen
     await Permission.microphone.request();
+    await ForegroundManager.requestPermission();
 
     _userId = await UserService.getUserId();
     _displayName = await UserService.getDisplayName();
 
-    _wsService = WebSocketService(
-      groupId: widget.group.id,
+    _wsService = ActiveChannelSession.instance.getOrCreateSession(
+      group: widget.group,
       userId: _userId,
       displayName: _displayName,
     );
@@ -73,6 +76,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       Navigator.of(context).pop();
       return;
     }
+
     setState(() {});
   }
 
@@ -80,7 +84,8 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
   void dispose() {
     _pulseController.dispose();
     _wsService?.removeListener(_onWsUpdate);
-    _wsService?.dispose();
+    // Note: Do NOT dispose _wsService or ForegroundManager here!
+    // ActiveChannelSession maintains the persistent audio session across pages
     super.dispose();
   }
 
@@ -111,6 +116,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
     if (confirm != true) return;
 
     try {
+      ActiveChannelSession.instance.disconnect();
       await ApiService.leaveGroup(groupId: widget.group.id, userId: _userId);
       await UserService.removeJoinedGroupId(widget.group.id);
       if (mounted) {
@@ -155,6 +161,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
     if (confirm != true) return;
 
     try {
+      ActiveChannelSession.instance.disconnect();
       await ApiService.deleteGroup(widget.group.id);
       await UserService.removeJoinedGroupId(widget.group.id);
       if (mounted) {
@@ -183,8 +190,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
     }
 
     final isTransmitting = _wsService!.isSpeaking;
-    final isBusy = _wsService!.isChannelBusy;
-    final speakerName = _wsService!.activeSpeakerName;
+    final otherSpeakers = _wsService!.otherActiveSpeakerNames;
     final isConnected = _wsService!.status == ConnectionStatus.connected;
     final isConnecting = _wsService!.status == ConnectionStatus.connecting;
 
@@ -206,6 +212,74 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
           ],
         ),
         actions: [
+          // Tactical Power Toggle (Standby / Online)
+          Tooltip(
+            message: _wsService!.isPoweredOn
+                ? 'Channel Power: ON (Receiving in background)'
+                : 'Channel Power: OFF (Standby)',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                _wsService!.togglePower();
+                if (_wsService!.isPoweredOn) {
+                  ForegroundManager.start(
+                    channelName: widget.group.name,
+                    userName: _displayName,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      duration: Duration(seconds: 2),
+                      content: Text('📻 Power ON: Connected & listening in background.'),
+                    ),
+                  );
+                } else {
+                  ForegroundManager.stop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      duration: Duration(seconds: 2),
+                      content: Text('🔴 Power OFF: Disconnected from channel.'),
+                    ),
+                  );
+                }
+                setState(() {});
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _wsService!.isPoweredOn
+                            ? WalkieTheme.readyEmerald
+                            : WalkieTheme.alertCrimson,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_wsService!.isPoweredOn
+                                    ? WalkieTheme.readyEmerald
+                                    : WalkieTheme.alertCrimson)
+                                .withValues(alpha: 0.8),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.power_settings_new_rounded,
+                      size: 22,
+                      color: _wsService!.isPoweredOn
+                          ? WalkieTheme.readyEmerald
+                          : WalkieTheme.textTertiary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           IconButton(
             icon: Icon(
               _wsService!.echoMode ? Icons.repeat_on_rounded : Icons.repeat_rounded,
@@ -227,6 +301,36 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                 ),
               );
             },
+          ),
+          IconButton(
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.history_rounded),
+                if (_wsService!.transmissions.isNotEmpty)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: WalkieTheme.primaryAmber,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${_wsService!.transmissions.length}',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            tooltip: 'Audio History (Last 5 per user)',
+            onPressed: _showHistorySheet,
           ),
           IconButton(
             icon: const Icon(Icons.qr_code_rounded),
@@ -336,7 +440,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                             itemBuilder: (ctx, idx) {
                               final member = _wsService!.members[idx];
                               final isUserSpeaking =
-                                  _wsService!.activeSpeakerId == member.userId;
+                                  _wsService!.activeSpeakerIds.contains(member.userId);
 
                               return _buildMemberBadge(member, isUserSpeaking);
                             },
@@ -372,32 +476,39 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                       ],
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Release button to stop transmission',
-                      style: TextStyle(fontSize: 13, color: WalkieTheme.textSecondary),
+                    Text(
+                      otherSpeakers.isNotEmpty
+                          ? 'Also transmitting with ${otherSpeakers.join(", ")}'
+                          : 'Release button to stop transmission',
+                      style: const TextStyle(fontSize: 13, color: WalkieTheme.textSecondary),
                     ),
-                  ] else if (isBusy) ...[
+                  ] else if (otherSpeakers.isNotEmpty) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(Icons.volume_up, color: WalkieTheme.readyEmerald, size: 20),
                         const SizedBox(width: 6),
-                        Text(
-                          '${speakerName?.toUpperCase() ?? "SOMEONE"} IS SPEAKING',
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
-                            color: WalkieTheme.readyEmerald,
+                        Flexible(
+                          child: Text(
+                            otherSpeakers.length == 1
+                                ? '${otherSpeakers.first.toUpperCase()} IS SPEAKING'
+                                : '${otherSpeakers.join(", ").toUpperCase()} ARE SPEAKING',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.5,
+                              color: WalkieTheme.readyEmerald,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Channel busy • Wait for speaker to finish',
-                      style: TextStyle(fontSize: 13, color: WalkieTheme.textTertiary),
+                      'Multi-talk active • Hold button to join & speak',
+                      style: TextStyle(fontSize: 13, color: WalkieTheme.readyEmerald),
                     ),
                   ] else ...[
                     const Text(
@@ -454,7 +565,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (_) {
-                  if (isConnected && !isBusy) {
+                  if (isConnected) {
                     HapticFeedback.heavyImpact();
                     _wsService!.startPTT();
                   } else {
@@ -490,16 +601,14 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                       shape: BoxShape.circle,
                       color: isTransmitting
                           ? WalkieTheme.primaryAmber
-                          : (isBusy
-                              ? WalkieTheme.surfaceCard
-                              : WalkieTheme.surfaceCardElevated),
+                          : WalkieTheme.surfaceCardElevated,
                       border: Border.all(
                         color: isTransmitting
                             ? WalkieTheme.primaryAmberLight
-                            : (isBusy
-                                ? WalkieTheme.alertCrimson.withValues(alpha: 0.5)
+                            : (otherSpeakers.isNotEmpty
+                                ? WalkieTheme.readyEmerald.withValues(alpha: 0.8)
                                 : WalkieTheme.surfaceCardBorder),
-                        width: isTransmitting ? 4 : 2,
+                        width: isTransmitting ? 4 : (otherSpeakers.isNotEmpty ? 3 : 2),
                       ),
                       boxShadow: [
                         if (isTransmitting)
@@ -508,10 +617,11 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                             blurRadius: 36,
                             spreadRadius: 8,
                           ),
-                        if (isBusy)
+                        if (otherSpeakers.isNotEmpty)
                           BoxShadow(
-                            color: WalkieTheme.readyEmerald.withValues(alpha: 0.2),
-                            blurRadius: 20,
+                            color: WalkieTheme.readyEmerald.withValues(alpha: 0.3),
+                            blurRadius: 24,
+                            spreadRadius: 2,
                           ),
                       ],
                     ),
@@ -521,11 +631,11 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                         Icon(
                           isTransmitting
                               ? Icons.mic
-                              : (isBusy ? Icons.volume_up : Icons.mic_none),
+                              : (otherSpeakers.isNotEmpty ? Icons.record_voice_over : Icons.mic_none),
                           size: 56,
                           color: isTransmitting
                               ? const Color(0xFF472A00)
-                              : (isBusy
+                              : (otherSpeakers.isNotEmpty
                                   ? WalkieTheme.readyEmerald
                                   : WalkieTheme.textPrimary),
                         ),
@@ -533,7 +643,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                         Text(
                           isTransmitting
                               ? 'TALKING'
-                              : (isBusy ? 'BUSY' : 'HOLD TO TALK'),
+                              : (otherSpeakers.isNotEmpty ? 'JOIN TALK' : 'HOLD TO TALK'),
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
@@ -541,7 +651,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                             letterSpacing: 1.5,
                             color: isTransmitting
                                 ? const Color(0xFF472A00)
-                                : (isBusy
+                                : (otherSpeakers.isNotEmpty
                                     ? WalkieTheme.readyEmerald
                                     : WalkieTheme.textSecondary),
                           ),
@@ -604,7 +714,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                   ),
                 ],
               )
-            else if (isBusy)
+            else if (otherSpeakers.isNotEmpty)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -714,6 +824,247 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
           ),
         ],
       ),
+    );
+  }
+
+  void _showHistorySheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: WalkieTheme.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final transmissions = _wsService?.transmissions ?? [];
+            final isPlaying = _wsService?.currentlyPlayingTransmissionId != null;
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: WalkieTheme.textTertiary.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.history_rounded, color: WalkieTheme.primaryAmber, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'TRANSMISSION REPLAY',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                              color: WalkieTheme.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded, color: WalkieTheme.textSecondary, size: 20),
+                        tooltip: 'Refresh',
+                        onPressed: () async {
+                          await _wsService?.loadHistory();
+                          setSheetState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                  const Text(
+                    'Last 5 voice transmissions retained per speaker in RAM.',
+                    style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
+                  ),
+                  const Divider(color: WalkieTheme.surfaceCardBorder, height: 24),
+                  if (_wsService?.isLoadingHistory == true)
+                    const Expanded(
+                      child: Center(
+                        child: CircularProgressIndicator(color: WalkieTheme.primaryAmber),
+                      ),
+                    )
+                  else if (transmissions.isEmpty)
+                    const Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.graphic_eq_rounded, size: 48, color: WalkieTheme.textTertiary),
+                            SizedBox(height: 12),
+                            Text(
+                              'No recent transmissions',
+                              style: TextStyle(color: WalkieTheme.textSecondary, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Voice messages spoken in this channel will appear here.',
+                              style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: transmissions.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (ctx, idx) {
+                          final tx = transmissions[idx];
+                          final isThisPlaying = _wsService?.currentlyPlayingTransmissionId == tx.id;
+                          final isMe = tx.userId == _userId;
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isThisPlaying
+                                  ? WalkieTheme.primaryAmber.withValues(alpha: 0.15)
+                                  : WalkieTheme.surfaceCardElevated,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isThisPlaying
+                                    ? WalkieTheme.primaryAmber
+                                    : WalkieTheme.surfaceCardBorder,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: isMe
+                                      ? WalkieTheme.primaryAmber.withValues(alpha: 0.2)
+                                      : WalkieTheme.surfaceLowest,
+                                  child: Text(
+                                    tx.displayName.isNotEmpty
+                                        ? tx.displayName.substring(0, 1).toUpperCase()
+                                        : '?',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isMe
+                                          ? WalkieTheme.primaryAmber
+                                          : WalkieTheme.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              isMe ? '${tx.displayName} (You)' : tx.displayName,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                                color: WalkieTheme.textPrimary,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '• ${tx.timeAgo}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: WalkieTheme.textTertiary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Wrap(
+                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        spacing: 8,
+                                        children: [
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.timer_outlined, size: 12, color: WalkieTheme.textTertiary),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                '${tx.durationSeconds}s',
+                                                style: const TextStyle(
+                                                  fontFamily: 'monospace',
+                                                  fontSize: 11,
+                                                  color: WalkieTheme.textSecondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.memory_rounded, size: 12, color: WalkieTheme.textTertiary),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                '${(tx.sizeBytes / 1024).toStringAsFixed(1)} KB',
+                                                style: const TextStyle(
+                                                  fontFamily: 'monospace',
+                                                  fontSize: 11,
+                                                  color: WalkieTheme.textTertiary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: isThisPlaying
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: WalkieTheme.primaryAmber,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.play_circle_fill_rounded,
+                                          color: WalkieTheme.primaryAmber,
+                                          size: 32,
+                                        ),
+                                  tooltip: 'Replay audio',
+                                  onPressed: isPlaying
+                                      ? null
+                                      : () async {
+                                          await _wsService?.replayTransmission(tx);
+                                          setSheetState(() {});
+                                        },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

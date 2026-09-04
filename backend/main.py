@@ -1,15 +1,23 @@
+import os
+import sys
 import logging
 import uuid
 import secrets
 import string
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Query
+# Ensure backend directory is in sys.path regardless of execution working directory
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 import aiosqlite
 
-from database import init_db, get_db
+from database import init_db, get_db, DB_PATH
+from audio_history import audio_history
 from models import (
     CreateGroupRequest,
     GroupResponse,
@@ -97,15 +105,25 @@ async def create_group(
     )
 
 @app.get("/groups", response_model=List[GroupResponse])
-async def list_groups(db: aiosqlite.Connection = Depends(get_db)):
+async def list_groups(
+    user_id: Optional[str] = Query(None),
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    """
+    Returns channels that the specified user is a member of.
+    If no user_id is provided or the user has not joined any channels, returns empty list.
+    Channels are private and require a QR code or Join Token to join.
+    """
+    if not user_id:
+        return []
+
     cursor = await db.execute("""
         SELECT g.id, g.name, g.join_token, g.created_at,
-               COUNT(m.user_id) as member_count
+               (SELECT COUNT(*) FROM members WHERE group_id = g.id) as member_count
         FROM groups g
-        LEFT JOIN members m ON g.id = m.group_id
-        GROUP BY g.id
+        INNER JOIN members m ON g.id = m.group_id AND m.user_id = ?
         ORDER BY g.created_at DESC
-    """)
+    """, (user_id,))
     rows = await cursor.fetchall()
     return [
         GroupResponse(
@@ -279,10 +297,30 @@ async def websocket_group_endpoint(
     display_name: str = Query("User"),
     echo: bool = Query(False)
 ):
+    # Verify that user is a member of this channel (joined via QR code / Join Token)
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            "SELECT 1 FROM members WHERE group_id = ? AND user_id = ?",
+            (group_id, user_id)
+        )
+        is_member = await cur.fetchone()
+        if not is_member:
+            await websocket.accept()
+            import json
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": "Access denied: You must join this channel via QR code or Join Code first."
+            }))
+            await websocket.close(code=4003, reason="Forbidden: Not a channel member")
+            return
+
     await manager.connect(group_id, user_id, display_name, websocket)
     is_echo_enabled = echo
     audio_frame_count = 0
     total_audio_bytes = 0
+    transmission_buffer = bytearray()
+    ptt_start_time = 0.0
     import time
     last_log_time = 0.0
 
@@ -304,6 +342,8 @@ async def websocket_group_endpoint(
                         if acquired:
                             audio_frame_count = 0
                             total_audio_bytes = 0
+                            transmission_buffer.clear()
+                            ptt_start_time = time.time()
                             logger.info(f"🎙️ [PTT ON] '{display_name}' started transmitting (group: {group_id}, echo={is_echo_enabled})")
                             # Notify everyone that this user started speaking
                             await manager.broadcast_json(group_id, {
@@ -324,11 +364,26 @@ async def websocket_group_endpoint(
                     elif msg_type == "ptt_stop":
                         released = await manager.release_ptt(group_id, user_id)
                         if released:
-                            logger.info(f"🛑 [PTT OFF] '{display_name}' stopped transmitting (sent {total_audio_bytes} bytes across {audio_frame_count} frames)")
+                            duration = max(0.2, time.time() - ptt_start_time)
+                            logger.info(f"🛑 [PTT OFF] '{display_name}' stopped transmitting (sent {total_audio_bytes} bytes across {audio_frame_count} frames, {duration:.1f}s)")
+                            
+                            # Save to in-memory history (last 5 per user) if audio was actually transmitted
+                            saved_msg = None
+                            if len(transmission_buffer) > 0:
+                                saved_msg = audio_history.add_message(
+                                    group_id=group_id,
+                                    user_id=user_id,
+                                    display_name=display_name,
+                                    raw_pcm=bytes(transmission_buffer),
+                                    duration_seconds=duration,
+                                )
+
                             await manager.broadcast_json(group_id, {
                                 "type": "ptt_stopped",
-                                "user_id": user_id
+                                "user_id": user_id,
+                                "transmission": saved_msg.to_dict() if saved_msg else None
                             })
+                            transmission_buffer.clear()
 
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid JSON received from user {user_id}: {message['text']}")
@@ -339,6 +394,7 @@ async def websocket_group_endpoint(
                 if manager.is_speaking(group_id, user_id):
                     audio_frame_count += 1
                     total_audio_bytes += len(audio_bytes)
+                    transmission_buffer.extend(audio_bytes)
                     now = time.time()
                     exclude_id = None if is_echo_enabled else user_id
                     listeners = await manager.broadcast_bytes(group_id, audio_bytes, exclude_user_id=exclude_id)
@@ -353,6 +409,38 @@ async def websocket_group_endpoint(
     except Exception as e:
         logger.error(f"WebSocket error for user {user_id} in {group_id}: {e}")
         await manager.disconnect(group_id, user_id)
+
+# --------------------------------------------------------------------------
+# Audio History & Replay Endpoints (RAM based)
+# --------------------------------------------------------------------------
+
+@app.get("/groups/{group_id}/history")
+async def get_group_audio_history(group_id: str):
+    """Retrieve last 5 audio messages per user in this group, sorted newest first."""
+    messages = audio_history.get_group_messages(group_id)
+    return {"group_id": group_id, "messages": messages}
+
+@app.get("/history/{message_id}/wav")
+async def get_message_wav(message_id: str):
+    """Stream cached audio message as a standard WAV audio clip directly from RAM."""
+    msg = audio_history.get_message(message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Audio message not found or expired from cache")
+    
+    wav_bytes = msg.to_wav()
+    return Response(
+        content=wav_bytes,
+        media_type="audio/wav",
+        headers={"Content-Disposition": f"inline; filename=msg_{message_id}.wav"}
+    )
+
+@app.get("/history/{message_id}/raw")
+async def get_message_raw_pcm(message_id: str):
+    """Stream raw PCM16 bytes directly from RAM for low-latency playback."""
+    msg = audio_history.get_message(message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Audio message not found or expired from cache")
+    return Response(content=msg.audio_bytes, media_type="application/octet-stream")
 
 @app.get("/health")
 async def health_check():

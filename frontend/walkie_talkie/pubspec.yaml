@@ -52,6 +52,7 @@ dependencies:
   shared_preferences: ^2.2.3
   uuid: ^4.4.0
   google_fonts: ^6.2.1
+  flutter_foreground_task: ^11.0.2
 
 
 dev_dependencies:

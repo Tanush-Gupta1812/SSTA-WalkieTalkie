@@ -3,6 +3,7 @@ import '../config.dart';
 import '../models/group.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
+import '../services/active_channel_session.dart';
 import '../theme.dart';
 import 'create_group_screen.dart';
 import 'group_talk_screen.dart';
@@ -24,7 +25,18 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
   @override
   void initState() {
     super.initState();
+    ActiveChannelSession.instance.addListener(_onSessionUpdate);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    ActiveChannelSession.instance.removeListener(_onSessionUpdate);
+    super.dispose();
+  }
+
+  void _onSessionUpdate() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadData() async {
@@ -49,8 +61,9 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
         }
       }
 
+      final userId = await UserService.getUserId();
       final name = await UserService.getDisplayName();
-      final groups = await ApiService.listGroups();
+      final groups = await ApiService.listGroups(userId: userId);
 
       if (mounted) {
         setState(() {
@@ -323,6 +336,88 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
               ),
             ),
 
+            // Active Channel Sticky Banner (When a channel is powered on in the background)
+            if (ActiveChannelSession.instance.hasActiveSession)
+              InkWell(
+                onTap: () {
+                  final grp = ActiveChannelSession.instance.activeGroup;
+                  if (grp != null) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => GroupTalkScreen(group: grp),
+                      ),
+                    );
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: WalkieTheme.readyEmerald.withValues(alpha: 0.15),
+                    border: const Border(
+                      bottom: BorderSide(color: WalkieTheme.readyEmerald, width: 1.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: WalkieTheme.readyEmerald,
+                          boxShadow: [
+                            BoxShadow(
+                              color: WalkieTheme.readyEmerald.withValues(alpha: 0.8),
+                              blurRadius: 6,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'CHANNEL ACTIVE IN BACKGROUND',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                                color: WalkieTheme.readyEmerald,
+                              ),
+                            ),
+                            Text(
+                              'Connected: ${ActiveChannelSession.instance.activeGroupName ?? ""}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: WalkieTheme.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.volume_up_rounded, color: WalkieTheme.readyEmerald, size: 20),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'OPEN',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.bold,
+                          color: WalkieTheme.readyEmerald,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: WalkieTheme.readyEmerald, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+
             // Main Channel List Content
             Expanded(
               child: _isLoading
@@ -362,10 +457,10 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.radio, size: 56, color: WalkieTheme.textTertiary.withValues(alpha: 0.4)),
+                                  Icon(Icons.lock_outline_rounded, size: 56, color: WalkieTheme.textTertiary.withValues(alpha: 0.4)),
                                   const SizedBox(height: 16),
                                   const Text(
-                                    'No channels found',
+                                    'No channels joined yet',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
@@ -374,7 +469,8 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   const Text(
-                                    'Create a new channel or scan a QR code to join.',
+                                    'Channels are private. Scan a QR code\nor enter a 6-digit Join Code to connect.',
+                                    textAlign: TextAlign.center,
                                     style: TextStyle(fontSize: 13, color: WalkieTheme.textTertiary),
                                   ),
                                 ],
@@ -386,21 +482,68 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                               separatorBuilder: (_, _) => const SizedBox(height: 12),
                               itemBuilder: (ctx, idx) {
                                 final group = _groups[idx];
+                                final isActiveThisGroup =
+                                    ActiveChannelSession.instance.hasActiveSession &&
+                                    ActiveChannelSession.instance.activeGroupId == group.id;
+
                                 return Card(
+                                  shape: isActiveThisGroup
+                                      ? RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                          side: const BorderSide(color: WalkieTheme.readyEmerald, width: 1.5),
+                                        )
+                                      : null,
                                   child: ListTile(
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                     leading: CircleAvatar(
                                       radius: 22,
-                                      backgroundColor: WalkieTheme.surfaceCardElevated,
-                                      child: const Icon(Icons.graphic_eq, color: WalkieTheme.primaryAmber),
-                                    ),
-                                    title: Text(
-                                      group.name,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: WalkieTheme.textPrimary,
+                                      backgroundColor: isActiveThisGroup
+                                          ? WalkieTheme.readyEmerald.withValues(alpha: 0.2)
+                                          : WalkieTheme.surfaceCardElevated,
+                                      child: Icon(
+                                        isActiveThisGroup ? Icons.graphic_eq_rounded : Icons.graphic_eq,
+                                        color: isActiveThisGroup ? WalkieTheme.readyEmerald : WalkieTheme.primaryAmber,
                                       ),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Text(
+                                          group.name,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: WalkieTheme.textPrimary,
+                                          ),
+                                        ),
+                                        if (isActiveThisGroup) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: WalkieTheme.readyEmerald.withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: WalkieTheme.readyEmerald, width: 0.8),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.check_circle_rounded, size: 10, color: WalkieTheme.readyEmerald),
+                                                SizedBox(width: 3),
+                                                Text(
+                                                  'ACTIVE',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontFamily: 'monospace',
+                                                    fontWeight: FontWeight.bold,
+                                                    color: WalkieTheme.readyEmerald,
+                                                    letterSpacing: 0.8,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                     subtitle: Text(
                                       'CODE: ${group.joinToken} • ${group.memberCount} members',

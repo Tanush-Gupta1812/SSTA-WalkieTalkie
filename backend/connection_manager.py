@@ -17,8 +17,8 @@ class ConnectionManager:
         self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
         # user_id -> display_name
         self.user_names: Dict[str, str] = {}
-        # group_id -> user_id currently speaking (or None)
-        self.active_speaker: Dict[str, Optional[str]] = {}
+        # group_id -> Set of user_ids currently transmitting
+        self.active_speakers: Dict[str, Set[str]] = {}
         # Lock for atomic PTT state mutations
         self._lock = asyncio.Lock()
 
@@ -27,7 +27,7 @@ class ConnectionManager:
         async with self._lock:
             if group_id not in self.active_connections:
                 self.active_connections[group_id] = {}
-                self.active_speaker[group_id] = None
+                self.active_speakers[group_id] = set()
 
             self.active_connections[group_id][user_id] = websocket
             self.user_names[user_id] = display_name
@@ -51,16 +51,16 @@ class ConnectionManager:
                 self.active_connections[group_id].pop(user_id, None)
                 if not self.active_connections[group_id]:
                     del self.active_connections[group_id]
-                    self.active_speaker.pop(group_id, None)
+                    self.active_speakers.pop(group_id, None)
 
-            if self.active_speaker.get(group_id) == user_id:
-                self.active_speaker[group_id] = None
+            if group_id in self.active_speakers and user_id in self.active_speakers[group_id]:
+                self.active_speakers[group_id].discard(user_id)
                 was_speaking = True
 
         display_name = self.user_names.get(user_id, user_id)
         logger.info(f"User '{display_name}' ({user_id}) left group {group_id}")
 
-        # If user was actively transmitting when they disconnected, release channel immediately
+        # If user was actively transmitting when they disconnected, notify channel
         if was_speaking:
             await self.broadcast_json(group_id, {
                 "type": "ptt_stopped",
@@ -74,32 +74,30 @@ class ConnectionManager:
 
     async def try_acquire_ptt(self, group_id: str, user_id: str) -> bool:
         """
-        Attempts to acquire the Push-To-Talk lock for group_id.
-        Returns True if acquired, False if another user is already transmitting.
+        Registers user_id as an active speaker in group_id.
+        Multi-speaker enabled: Always succeeds so multiple members can speak simultaneously.
         """
         async with self._lock:
-            current = self.active_speaker.get(group_id)
-            if current is not None and current != user_id:
-                # Channel is currently occupied
-                return False
-            self.active_speaker[group_id] = user_id
+            if group_id not in self.active_speakers:
+                self.active_speakers[group_id] = set()
+            self.active_speakers[group_id].add(user_id)
             return True
 
     async def release_ptt(self, group_id: str, user_id: str) -> bool:
         """
-        Releases the Push-To-Talk lock if held by user_id.
+        Removes user_id from active speakers.
         """
         async with self._lock:
-            if self.active_speaker.get(group_id) == user_id:
-                self.active_speaker[group_id] = None
+            if group_id in self.active_speakers and user_id in self.active_speakers[group_id]:
+                self.active_speakers[group_id].discard(user_id)
                 return True
             return False
 
-    def get_active_speaker(self, group_id: str) -> Optional[str]:
-        return self.active_speaker.get(group_id)
+    def get_active_speakers(self, group_id: str) -> Set[str]:
+        return set(self.active_speakers.get(group_id, set()))
 
     def is_speaking(self, group_id: str, user_id: str) -> bool:
-        return self.active_speaker.get(group_id) == user_id
+        return user_id in self.active_speakers.get(group_id, set())
 
     def get_online_users(self, group_id: str) -> Set[str]:
         return set(self.active_connections.get(group_id, {}).keys())
@@ -139,20 +137,23 @@ class ConnectionManager:
         """
         Sends the initial connection state to a newly connected client:
         - List of online members
-        - Current active speaker (if any)
+        - Current active speakers
         """
         online_members = [
             {"user_id": uid, "display_name": self.user_names.get(uid, uid)}
             for uid in self.active_connections.get(group_id, {}).keys()
         ]
-        active_speaker_id = self.active_speaker.get(group_id)
-        speaker_name = self.user_names.get(active_speaker_id) if active_speaker_id else None
+        active_speaker_ids = list(self.active_speakers.get(group_id, set()))
+        active_speaker_names = [self.user_names.get(sid, sid) for sid in active_speaker_ids]
 
         initial_payload = {
             "type": "initial_state",
             "online_members": online_members,
-            "active_speaker_id": active_speaker_id,
-            "active_speaker_name": speaker_name
+            "active_speaker_ids": active_speaker_ids,
+            "active_speaker_names": active_speaker_names,
+            # Backwards compatibility fields
+            "active_speaker_id": active_speaker_ids[0] if active_speaker_ids else None,
+            "active_speaker_name": active_speaker_names[0] if active_speaker_names else None,
         }
         try:
             await websocket.send_text(json.dumps(initial_payload))

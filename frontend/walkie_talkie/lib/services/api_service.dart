@@ -37,8 +37,11 @@ class ApiService {
     }
   }
 
-  static Future<List<Group>> listGroups() async {
-    final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups');
+  static Future<List<Group>> listGroups({String? userId}) async {
+    final baseUri = Uri.parse('${AppConfig.httpBaseUrl}/groups');
+    final uri = (userId != null && userId.isNotEmpty)
+        ? baseUri.replace(queryParameters: {'user_id': userId})
+        : baseUri;
     final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
@@ -119,6 +122,29 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw Exception('Failed to delete group: ${response.body}');
+    }
+  }
+
+  static Future<List<dynamic>> getGroupAudioHistory(String groupId) async {
+    final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/$groupId/history');
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      return (decoded['messages'] as List<dynamic>?) ?? [];
+    } else {
+      throw Exception('Failed to get audio history: ${response.body}');
+    }
+  }
+
+  static Future<List<int>> getTransmissionRawPcm(String messageId) async {
+    final uri = Uri.parse('${AppConfig.httpBaseUrl}/history/$messageId/raw');
+    final response = await http.get(uri, headers: _headers);
+
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    } else {
+      throw Exception('Failed to fetch audio data: ${response.statusCode}');
     }
   }
 }

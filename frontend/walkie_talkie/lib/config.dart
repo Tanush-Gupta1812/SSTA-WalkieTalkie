@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
-  /// Active public tunnel URL for seamless cross-network & cross-device communication.
-  static const String publicTunnelUrl = 'https://christina-interests-tex-stylish.trycloudflare.com';
+  /// Active public tunnel URL (permanent ngrok static domain)
+  static const String publicTunnelUrl = 'https://kenneth-nonfortuitous-unthreateningly.ngrok-free.dev';
 
   /// Base host configuration.
   /// Uses public tunnel if configured, or falls back to local emulator / localhost.
