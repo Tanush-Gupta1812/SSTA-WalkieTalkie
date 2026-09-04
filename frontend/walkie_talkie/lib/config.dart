@@ -4,10 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppConfig {
+  static const String ec2ServerUrl = 'http://ec2-54-201-5-16.us-west-2.compute.amazonaws.com:2035';
+
   /// Candidate backend URLs for auto-discovery (in priority order)
   static const List<String> candidates = [
-    'http://ec2-54-201-5-16.us-west-2.compute.amazonaws.com:2035', // ✨ AWS EC2 KalorTech Server
-    'https://kenneth-nonfortuitous-unthreateningly.ngrok-free.dev', // Permanent ngrok static domain
+    ec2ServerUrl,                                                  // ✨ Primary AWS EC2 KalorTech Server
     'http://10.0.2.2:8000',                                        // Android Emulator
     'http://127.0.0.1:8000',                                       // iOS Simulator / USB adb reverse
     'http://10.0.33.180:8000',                                     // Direct Wi-Fi / Hotspot LAN IP
@@ -21,8 +22,8 @@ class AppConfig {
   static String? _manualUrl;
   static bool _discovering = false;
 
-  /// Returns current active host or falls back to first candidate
-  static String get effectiveHost => _manualUrl ?? _activeUrl ?? candidates.first;
+  /// Returns current active host or falls back to EC2 server
+  static String get effectiveHost => _manualUrl ?? _activeUrl ?? ec2ServerUrl;
 
   static String get httpBaseUrl {
     final raw = effectiveHost.trim();
@@ -58,6 +59,17 @@ class AppConfig {
       final prefs = await SharedPreferences.getInstance();
       _manualUrl = prefs.getString(_manualKey);
       _activeUrl = prefs.getString(_cacheKey);
+
+      // Auto-purge any old ngrok URLs cached from earlier testing
+      if (_manualUrl != null && _manualUrl!.contains('ngrok-free.dev')) {
+        _manualUrl = null;
+        await prefs.remove(_manualKey);
+      }
+      if (_activeUrl != null && _activeUrl!.contains('ngrok-free.dev')) {
+        _activeUrl = null;
+        await prefs.remove(_cacheKey);
+      }
+
       if (_manualUrl != null) {
         debugPrint('[AppConfig] 🛠️ Manual URL loaded: $_manualUrl');
       } else if (_activeUrl != null) {

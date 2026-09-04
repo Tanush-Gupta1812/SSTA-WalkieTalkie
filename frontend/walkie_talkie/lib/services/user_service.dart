@@ -9,7 +9,12 @@ class UserService {
 
   static Future<String?> getSavedServerUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyServerUrl);
+    final url = prefs.getString(_keyServerUrl);
+    if (url != null && url.contains('ngrok-free.dev')) {
+      await prefs.remove(_keyServerUrl);
+      return null;
+    }
+    return url;
   }
 
   static Future<void> saveServerUrl(String url) async {
