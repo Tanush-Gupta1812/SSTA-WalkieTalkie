@@ -17,7 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import aiosqlite
 
 from database import init_db, get_db, DB_PATH
-from audio_history import audio_history
 from models import (
     CreateGroupRequest,
     GroupResponse,
@@ -501,38 +500,6 @@ async def websocket_group_endpoint(
     except Exception as e:
         logger.error(f"WebSocket error for user {user_id} in {group_id}: {e}")
         await manager.disconnect(group_id, user_id)
-
-# --------------------------------------------------------------------------
-# Audio History & Replay Endpoints (RAM based)
-# --------------------------------------------------------------------------
-
-@app.get("/groups/{group_id}/history")
-async def get_group_audio_history(group_id: str):
-    """Retrieve last 5 audio messages per user in this group, sorted newest first."""
-    messages = audio_history.get_group_messages(group_id)
-    return {"group_id": group_id, "messages": messages}
-
-@app.get("/history/{message_id}/wav")
-async def get_message_wav(message_id: str):
-    """Stream cached audio message as a standard WAV audio clip directly from RAM."""
-    msg = audio_history.get_message(message_id)
-    if not msg:
-        raise HTTPException(status_code=404, detail="Audio message not found or expired from cache")
-    
-    wav_bytes = msg.to_wav()
-    return Response(
-        content=wav_bytes,
-        media_type="audio/wav",
-        headers={"Content-Disposition": f"inline; filename=msg_{message_id}.wav"}
-    )
-
-@app.get("/history/{message_id}/raw")
-async def get_message_raw_pcm(message_id: str):
-    """Stream raw PCM16 bytes directly from RAM for low-latency playback."""
-    msg = audio_history.get_message(message_id)
-    if not msg:
-        raise HTTPException(status_code=404, detail="Audio message not found or expired from cache")
-    return Response(content=msg.audio_bytes, media_type="application/octet-stream")
 
 @app.get("/health")
 async def health_check():

@@ -163,33 +163,6 @@ class ApiService {
     });
   }
 
-  static Future<List<dynamic>> getGroupAudioHistory(String groupId) {
-    return _withRetry(() async {
-      final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/$groupId/history');
-      final response = await http.get(uri, headers: _headers).timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-        return (decoded['messages'] as List<dynamic>?) ?? [];
-      } else {
-        throw Exception('Failed to get audio history: ${response.body}');
-      }
-    });
-  }
-
-  static Future<List<int>> getTransmissionRawPcm(String messageId) {
-    return _withRetry(() async {
-      final uri = Uri.parse('${AppConfig.httpBaseUrl}/history/$messageId/raw');
-      final response = await http.get(uri, headers: _headers).timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        return response.bodyBytes;
-      } else {
-        throw Exception('Failed to fetch audio data: ${response.statusCode}');
-      }
-    });
-  }
-
   static Future<void> updateDisplayName({
     required String userId,
     required String displayName,
