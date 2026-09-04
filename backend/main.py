@@ -66,6 +66,22 @@ def generate_join_token(length: int = 6) -> str:
 # REST API Endpoints
 # --------------------------------------------------------------------------
 
+@app.get("/")
+async def root():
+    return {
+        "status": "online",
+        "service": "SSTA-WalkieTalkie Backend",
+        "version": "1.0.0"
+    }
+
+@app.get("/health")
+@app.get("/walkie/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "db": "connected"
+    }
+
 @app.post("/groups", response_model=GroupResponse, status_code=status.HTTP_201_CREATED)
 async def create_group(
     req: CreateGroupRequest,

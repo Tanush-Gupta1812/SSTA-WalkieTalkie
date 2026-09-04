@@ -46,21 +46,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
     });
 
     try {
-      if (AppConfig.customUrlOrHost.isEmpty) {
-        final savedUrl = await UserService.getSavedServerUrl();
-        if (savedUrl != null && savedUrl.isNotEmpty) {
-          // If saved URL is a temporary trycloudflare domain that doesn't match the current active one, reset it
-          if (savedUrl.contains('.trycloudflare.com') && savedUrl != AppConfig.publicTunnelUrl) {
-            await UserService.saveServerUrl(AppConfig.publicTunnelUrl);
-            AppConfig.customUrlOrHost = AppConfig.publicTunnelUrl;
-          } else {
-            AppConfig.customUrlOrHost = savedUrl;
-          }
-        } else if (AppConfig.publicTunnelUrl.isNotEmpty) {
-          AppConfig.customUrlOrHost = AppConfig.publicTunnelUrl;
-        }
-      }
-
+      await AppConfig.ensureConnected();
       final userId = await UserService.getUserId();
       final name = await UserService.getDisplayName();
       final groups = await ApiService.listGroups(userId: userId);
@@ -315,14 +301,30 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
         ),
         actions: [
           TextButton(
+            onPressed: () async {
+              await AppConfig.setManualUrl(null);
+              await UserService.saveServerUrl('');
+              await AppConfig.discover();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+              _loadData();
+            },
+            child: const Text('Auto-Discover', style: TextStyle(color: WalkieTheme.primaryAmber)),
+          ),
+          TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {
               final newUrl = controller.text.trim();
-              AppConfig.customUrlOrHost = newUrl;
-              await UserService.saveServerUrl(newUrl);
+              if (newUrl.isEmpty) {
+                await AppConfig.setManualUrl(null);
+                await UserService.saveServerUrl('');
+                await AppConfig.discover();
+              } else {
+                await AppConfig.setManualUrl(newUrl);
+                await UserService.saveServerUrl(newUrl);
+              }
               if (ctx.mounted) Navigator.of(ctx).pop();
               _loadData();
             },
