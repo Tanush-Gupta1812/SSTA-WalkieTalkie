@@ -332,11 +332,32 @@ async def _handle_walkie_websocket(
     display_name: str,
     db: aiosqlite.Connection
 ):
-    # Verify membership
+    # 1. Verify channel exists on this server
+    cursor = await db.execute("SELECT name FROM groups WHERE id = ?", (group_id,))
+    group_row = await cursor.fetchone()
+    if not group_row:
+        # Group does not exist on this server - accept and notify client so it exits cleanly
+        await websocket.accept()
+        import json
+        await websocket.send_text(json.dumps({
+            "type": "group_deleted",
+            "message": "This channel does not exist on this server."
+        }))
+        await websocket.close(code=4004, reason="Group not found")
+        return
+
+    # 2. Ensure member is registered in channel
     cursor = await db.execute("SELECT 1 FROM members WHERE group_id = ? AND user_id = ?", (group_id, user_id))
     if not await cursor.fetchone():
-        await websocket.close(code=4003, reason="Forbidden: Not a member of this channel")
-        return
+        await db.execute(
+            """
+            INSERT INTO members (group_id, user_id, display_name)
+            VALUES (?, ?, ?)
+            ON CONFLICT(group_id, user_id) DO UPDATE SET display_name = excluded.display_name
+            """,
+            (group_id, user_id, display_name)
+        )
+        await db.commit()
 
     await manager.connect(group_id, user_id, display_name, websocket)
 

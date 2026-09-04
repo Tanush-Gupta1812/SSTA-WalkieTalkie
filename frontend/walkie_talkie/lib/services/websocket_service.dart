@@ -298,7 +298,7 @@ class WebSocketService extends ChangeNotifier {
   }
 
   void _onDisconnected() {
-    if (_disposed) return;
+    if (_disposed || _isGroupDeleted) return;
 
     _status = ConnectionStatus.disconnected;
     // Release active PTT immediately on disconnect
@@ -313,6 +313,7 @@ class WebSocketService extends ChangeNotifier {
     // Exponential backoff reconnect: 1s, 2s, 4s, max 8s
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(Duration(seconds: _reconnectDelaySeconds), () {
+      if (_disposed || _isGroupDeleted) return;
       _reconnectDelaySeconds = (_reconnectDelaySeconds * 2).clamp(1, 8);
       connect();
     });
