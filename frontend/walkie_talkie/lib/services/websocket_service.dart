@@ -15,7 +15,8 @@ enum ConnectionStatus { disconnected, connecting, connected }
 class WebSocketService extends ChangeNotifier {
   final String groupId;
   final String userId;
-  final String displayName;
+  late String _displayName;
+  String get displayName => _displayName;
 
   // In-memory transmission history (last 5 per user)
   final List<Transmission> _transmissions = [];
@@ -108,11 +109,31 @@ class WebSocketService extends ChangeNotifier {
   WebSocketService({
     required this.groupId,
     required this.userId,
-    required this.displayName,
+    required String displayName,
   }) {
+    _displayName = displayName;
     _initAudioPlayer();
     connect();
     loadHistory();
+  }
+
+  void updateDisplayName(String newName) {
+    _displayName = newName;
+    final index = _members.indexWhere((m) => m.userId == userId);
+    if (index != -1) {
+      _members[index] = _members[index].copyWith(displayName: newName);
+    }
+    if (_activeSpeakerNames.containsKey(userId)) {
+      _activeSpeakerNames[userId] = newName;
+    }
+    if (_channel != null && _status == ConnectionStatus.connected) {
+      _channel!.sink.add(jsonEncode({
+        'type': 'update_display_name',
+        'user_id': userId,
+        'display_name': newName,
+      }));
+    }
+    notifyListeners();
   }
 
   Future<void> loadHistory() async {
@@ -132,22 +153,41 @@ class WebSocketService extends ChangeNotifier {
     }
   }
 
+  bool _stopReplayRequested = false;
+
   Future<void> replayTransmission(Transmission tx) async {
     if (_currentlyPlayingTransmissionId != null) return;
     _currentlyPlayingTransmissionId = tx.id;
+    _stopReplayRequested = false;
     notifyListeners();
 
     try {
       final pcmBytes = await ApiService.getTransmissionRawPcm(tx.id);
-      if (pcmBytes.isNotEmpty) {
+      if (pcmBytes.isNotEmpty && !_stopReplayRequested) {
         _playAudioChunk(Uint8List.fromList(pcmBytes));
+        _drainPlaybackQueue();
+        final durationMs = (tx.durationSeconds * 1000).round();
+        const stepMs = 50;
+        int elapsed = 0;
+        while (elapsed < durationMs && !_stopReplayRequested) {
+          await Future.delayed(const Duration(milliseconds: stepMs));
+          elapsed += stepMs;
+        }
       }
     } catch (e) {
       debugPrint('Error replaying transmission: $e');
     } finally {
       _currentlyPlayingTransmissionId = null;
+      _stopReplayRequested = false;
       notifyListeners();
     }
+  }
+
+  void stopReplay() {
+    _stopReplayRequested = true;
+    _currentlyPlayingTransmissionId = null;
+    _flushPlaybackQueue();
+    notifyListeners();
   }
 
   Future<void> _initAudioPlayer() async {
@@ -345,6 +385,29 @@ class WebSocketService extends ChangeNotifier {
         _stopRecording();
         _isSpeaking = false;
         notifyListeners();
+        break;
+
+      case 'user_updated':
+        final uId = data['user_id'] as String?;
+        final dName = data['display_name'] as String?;
+        if (uId != null && dName != null) {
+          final index = _members.indexWhere((m) => m.userId == uId);
+          if (index != -1) {
+            _members[index] = _members[index].copyWith(displayName: dName);
+          }
+          if (_activeSpeakerNames.containsKey(uId)) {
+            _activeSpeakerNames[uId] = dName;
+          }
+          notifyListeners();
+        }
+        break;
+
+      case 'group_renamed':
+        final gId = data['group_id'] as String?;
+        final gName = data['name'] as String?;
+        if (gId == groupId && gName != null) {
+          notifyListeners();
+        }
         break;
 
       case 'group_deleted':

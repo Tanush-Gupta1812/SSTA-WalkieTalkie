@@ -65,6 +65,25 @@ class ActiveChannelSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Update active group name when renamed
+  void updateGroupName(String groupId, String newName) {
+    if (_activeGroup?.id == groupId) {
+      _activeGroup = _activeGroup!.copyWith(name: newName);
+      ForegroundManager.start(
+        channelName: newName,
+      );
+      notifyListeners();
+    }
+  }
+
+  /// Update user display name in active session and websocket
+  void updateDisplayName(String newDisplayName) {
+    if (_wsService != null) {
+      _wsService!.updateDisplayName(newDisplayName);
+      notifyListeners();
+    }
+  }
+
   /// Explicitly disconnect and terminate session (e.g. when powered off or left)
   void disconnect() {
     _wsService?.removeListener(_onWsUpdate);

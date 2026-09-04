@@ -24,7 +24,10 @@ from models import (
     JoinGroupRequest,
     MemberResponse,
     LeaveGroupResponse,
-    DeleteGroupResponse
+    DeleteGroupResponse,
+    RenameGroupRequest,
+    UpdateUserRequest,
+    UpdateUserResponse,
 )
 from connection_manager import manager
 
@@ -285,6 +288,66 @@ async def delete_group(
         message=f"Group '{group_name}' deleted successfully"
     )
 
+@app.patch("/groups/{group_id}", response_model=GroupResponse)
+async def rename_group(
+    group_id: str,
+    payload: RenameGroupRequest,
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    # Verify group exists
+    cursor = await db.execute("SELECT id, name, join_token, created_at FROM groups WHERE id = ?", (group_id,))
+    row = await cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    new_name = payload.name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Channel name cannot be empty")
+
+    await db.execute("UPDATE groups SET name = ? WHERE id = ?", (new_name, group_id))
+    await db.commit()
+
+    # Broadcast rename event to all connected sockets in this channel
+    await manager.broadcast_group_renamed(group_id, new_name)
+
+    # Get updated member count
+    cnt_cursor = await db.execute("SELECT COUNT(*) FROM members WHERE group_id = ?", (group_id,))
+    cnt_row = await cnt_cursor.fetchone()
+    member_count = cnt_row[0] if cnt_row else 0
+
+    logger.info(f"Group '{group_id}' renamed to '{new_name}'")
+    return GroupResponse(
+        id=group_id,
+        name=new_name,
+        join_token=row["join_token"],
+        member_count=member_count,
+        created_at=str(row["created_at"])
+    )
+
+@app.put("/users/{user_id}", response_model=UpdateUserResponse)
+async def update_user(
+    user_id: str,
+    payload: UpdateUserRequest,
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    new_name = payload.display_name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Display name cannot be empty")
+
+    # Update in all group memberships
+    await db.execute("UPDATE members SET display_name = ? WHERE user_id = ?", (new_name, user_id))
+    await db.commit()
+
+    # Update in connection manager & broadcast live to all active channels
+    await manager.update_user_name(user_id, new_name)
+
+    logger.info(f"User '{user_id}' updated display name to '{new_name}'")
+    return UpdateUserResponse(
+        status="success",
+        user_id=user_id,
+        display_name=new_name
+    )
+
 # --------------------------------------------------------------------------
 # WebSocket Endpoint: Real-time Audio Streaming & PTT Signaling
 # --------------------------------------------------------------------------
@@ -384,6 +447,15 @@ async def websocket_group_endpoint(
                                 "transmission": saved_msg.to_dict() if saved_msg else None
                             })
                             transmission_buffer.clear()
+
+                    elif msg_type == "update_display_name":
+                        new_name = str(data.get("display_name", "")).strip()
+                        if new_name:
+                            display_name = new_name
+                            await manager.update_user_name(user_id, new_name)
+                            async with aiosqlite.connect(DB_PATH) as db:
+                                await db.execute("UPDATE members SET display_name = ? WHERE user_id = ?", (new_name, user_id))
+                                await db.commit()
 
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid JSON received from user {user_id}: {message['text']}")

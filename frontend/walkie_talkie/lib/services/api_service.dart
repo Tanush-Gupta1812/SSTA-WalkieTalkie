@@ -147,4 +147,38 @@ class ApiService {
       throw Exception('Failed to fetch audio data: ${response.statusCode}');
     }
   }
+
+  static Future<void> updateDisplayName({
+    required String userId,
+    required String displayName,
+  }) async {
+    final uri = Uri.parse('${AppConfig.httpBaseUrl}/users/$userId');
+    final response = await http.put(
+      uri,
+      headers: _headers,
+      body: jsonEncode({'display_name': displayName}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update display name: ${response.body}');
+    }
+  }
+
+  static Future<Group> renameGroup({
+    required String groupId,
+    required String newName,
+  }) async {
+    final uri = Uri.parse('${AppConfig.httpBaseUrl}/groups/$groupId');
+    final response = await http.patch(
+      uri,
+      headers: _headers,
+      body: jsonEncode({'name': newName}),
+    );
+
+    if (response.statusCode == 200) {
+      return Group.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } else {
+      throw Exception('Failed to rename group: ${response.body}');
+    }
+  }
 }

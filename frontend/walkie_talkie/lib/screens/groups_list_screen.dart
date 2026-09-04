@@ -111,9 +111,83 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
       ),
     );
 
-    if (newName != null && newName.isNotEmpty) {
+    if (newName != null && newName.isNotEmpty && newName != _displayName) {
       await UserService.setDisplayName(newName);
       setState(() => _displayName = newName);
+
+      try {
+        final userId = await UserService.getUserId();
+        await ApiService.updateDisplayName(userId: userId, displayName: newName);
+      } catch (e) {
+        debugPrint('Failed to sync display name to server: $e');
+      }
+
+      ActiveChannelSession.instance.updateDisplayName(newName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 2),
+            content: Text('Callsign updated to "$newName"'),
+          ),
+        );
+        _loadData();
+      }
+    }
+  }
+
+  Future<void> _renameGroup(Group group) async {
+    final controller = TextEditingController(text: group.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WalkieTheme.surfaceCardElevated,
+        title: const Text('Rename Channel'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: WalkieTheme.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'Enter new channel name',
+            hintStyle: TextStyle(color: WalkieTheme.textTertiary),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != group.name) {
+      try {
+        await ApiService.renameGroup(groupId: group.id, newName: newName);
+        ActiveChannelSession.instance.updateGroupName(group.id, newName);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 2),
+              content: Text('Channel renamed to "$newName"'),
+            ),
+          );
+          _loadData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: WalkieTheme.alertCrimson,
+              content: Text('Failed to rename: $e'),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -262,6 +336,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Row(
           children: [
@@ -559,13 +634,26 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                                         PopupMenuButton<String>(
                                           icon: const Icon(Icons.more_vert, size: 20, color: WalkieTheme.textTertiary),
                                           onSelected: (action) async {
-                                            if (action == 'leave') {
+                                            if (action == 'rename') {
+                                              await _renameGroup(group);
+                                            } else if (action == 'leave') {
                                               await _leaveGroup(group);
                                             } else if (action == 'delete') {
                                               await _deleteGroup(group);
                                             }
                                           },
                                           itemBuilder: (ctx) => [
+                                            const PopupMenuItem(
+                                              value: 'rename',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.edit_rounded, color: WalkieTheme.textPrimary, size: 18),
+                                                  SizedBox(width: 8),
+                                                  Text('Rename Channel'),
+                                                ],
+                                              ),
+                                            ),
+                                            const PopupMenuDivider(),
                                             const PopupMenuItem(
                                               value: 'leave',
                                               child: Row(

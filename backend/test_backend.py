@@ -127,3 +127,47 @@ async def test_delete_group():
         # Verify group no longer exists
         get_resp = await client.get(f"/groups/{group_id}")
         assert get_resp.status_code == 404
+
+@pytest.mark.asyncio
+async def test_rename_group():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/groups", json={"name": "Old Channel Name"})
+        assert resp.status_code == 201
+        group_id = resp.json()["id"]
+
+        rename_resp = await client.patch(f"/groups/{group_id}", json={"name": "New Channel Name"})
+        assert rename_resp.status_code == 200
+        assert rename_resp.json()["name"] == "New Channel Name"
+
+        # Verify through get group
+        get_resp = await client.get(f"/groups/{group_id}")
+        assert get_resp.status_code == 200
+        assert get_resp.json()["name"] == "New Channel Name"
+
+@pytest.mark.asyncio
+async def test_update_user_display_name():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Create group with creator
+        resp = await client.post("/groups", json={
+            "name": "Echo Channel",
+            "creator_id": "usr_999",
+            "creator_display_name": "OldCallsign"
+        })
+        assert resp.status_code == 201
+        group_id = resp.json()["id"]
+
+        # Check initial member list
+        m_resp = await client.get(f"/groups/{group_id}/members")
+        assert m_resp.json()[0]["display_name"] == "OldCallsign"
+
+        # Update user display name
+        update_resp = await client.put("/users/usr_999", json={"display_name": "NewCallsign"})
+        assert update_resp.status_code == 200
+        assert update_resp.json()["display_name"] == "NewCallsign"
+
+        # Verify updated name reflected in group members
+        m_resp2 = await client.get(f"/groups/{group_id}/members")
+        assert m_resp2.json()[0]["display_name"] == "NewCallsign"
+

@@ -26,6 +26,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
   WebSocketService? _wsService;
   String _userId = '';
   String _displayName = '';
+  late String _channelName;
   bool _isLoading = true;
 
   late AnimationController _pulseController;
@@ -34,6 +35,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
   @override
   void initState() {
     super.initState();
+    _channelName = widget.group.name;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -77,6 +79,11 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       return;
     }
 
+    if (ActiveChannelSession.instance.activeGroupName != null &&
+        ActiveChannelSession.instance.activeGroupName != _channelName) {
+      _channelName = ActiveChannelSession.instance.activeGroupName!;
+    }
+
     setState(() {});
   }
 
@@ -87,6 +94,114 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
     // Note: Do NOT dispose _wsService or ForegroundManager here!
     // ActiveChannelSession maintains the persistent audio session across pages
     super.dispose();
+  }
+
+  Future<void> _renameChannel() async {
+    final controller = TextEditingController(text: _channelName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WalkieTheme.surfaceCardElevated,
+        title: const Text('Rename Channel'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: WalkieTheme.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'Enter new channel name',
+            hintStyle: TextStyle(color: WalkieTheme.textTertiary),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != _channelName) {
+      try {
+        await ApiService.renameGroup(groupId: widget.group.id, newName: newName);
+        ActiveChannelSession.instance.updateGroupName(widget.group.id, newName);
+        setState(() => _channelName = newName);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 2),
+              content: Text('Channel renamed to "$newName"'),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: WalkieTheme.alertCrimson,
+              content: Text('Failed to rename: $e'),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _editMyCallsign() async {
+    final controller = TextEditingController(text: _displayName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: WalkieTheme.surfaceCardElevated,
+        title: const Text('Edit My Callsign'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: WalkieTheme.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'Enter your callsign',
+            hintStyle: TextStyle(color: WalkieTheme.textTertiary),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel', style: TextStyle(color: WalkieTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != _displayName) {
+      await UserService.setDisplayName(newName);
+      setState(() => _displayName = newName);
+
+      try {
+        await ApiService.updateDisplayName(userId: _userId, displayName: newName);
+      } catch (e) {
+        debugPrint('Failed to sync display name to server: $e');
+      }
+
+      _wsService?.updateDisplayName(newName);
+      ActiveChannelSession.instance.updateDisplayName(newName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 2),
+            content: Text('Callsign changed to "$newName"'),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _leaveChannel() async {
@@ -195,11 +310,12 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
     final isConnecting = _wsService!.status == ConnectionStatus.connecting;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.group.name),
+            Text(_channelName),
             Text(
               '${_wsService!.members.where((m) => m.isOnline).length} ONLINE',
               style: const TextStyle(
@@ -346,10 +462,33 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (val) {
+              if (val == 'rename') _renameChannel();
+              if (val == 'edit_name') _editMyCallsign();
               if (val == 'leave') _leaveChannel();
               if (val == 'delete') _deleteChannel();
             },
             itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'rename',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_rounded, color: WalkieTheme.textPrimary, size: 20),
+                    SizedBox(width: 8),
+                    Text('Rename Channel'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'edit_name',
+                child: Row(
+                  children: [
+                    Icon(Icons.badge_rounded, color: WalkieTheme.textPrimary, size: 20),
+                    SizedBox(width: 8),
+                    Text('Edit My Callsign'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'leave',
                 child: Row(
@@ -836,10 +975,16 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       ),
       isScrollControlled: true,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final transmissions = _wsService?.transmissions ?? [];
-            final isPlaying = _wsService?.currentlyPlayingTransmissionId != null;
+        if (_wsService == null) {
+          return const SizedBox(height: 200, child: Center(child: Text('Session unavailable')));
+        }
+
+        return ListenableBuilder(
+          listenable: _wsService!,
+          builder: (ctx, _) {
+            final transmissions = _wsService!.transmissions;
+            final playingId = _wsService!.currentlyPlayingTransmissionId;
+            final isPlayingAny = playingId != null;
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.65,
@@ -880,10 +1025,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                       IconButton(
                         icon: const Icon(Icons.refresh_rounded, color: WalkieTheme.textSecondary, size: 20),
                         tooltip: 'Refresh',
-                        onPressed: () async {
-                          await _wsService?.loadHistory();
-                          setSheetState(() {});
-                        },
+                        onPressed: () => _wsService?.loadHistory(),
                       ),
                     ],
                   ),
@@ -892,7 +1034,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
                   ),
                   const Divider(color: WalkieTheme.surfaceCardBorder, height: 24),
-                  if (_wsService?.isLoadingHistory == true)
+                  if (_wsService!.isLoadingHistory)
                     const Expanded(
                       child: Center(
                         child: CircularProgressIndicator(color: WalkieTheme.primaryAmber),
@@ -923,43 +1065,57 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     Expanded(
                       child: ListView.separated(
                         itemCount: transmissions.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (ctx, idx) {
                           final tx = transmissions[idx];
-                          final isThisPlaying = _wsService?.currentlyPlayingTransmissionId == tx.id;
+                          final isThisPlaying = playingId == tx.id;
                           final isMe = tx.userId == _userId;
 
                           return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             decoration: BoxDecoration(
                               color: isThisPlaying
-                                  ? WalkieTheme.primaryAmber.withValues(alpha: 0.15)
+                                  ? WalkieTheme.primaryAmber.withValues(alpha: 0.18)
                                   : WalkieTheme.surfaceCardElevated,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: isThisPlaying
                                     ? WalkieTheme.primaryAmber
                                     : WalkieTheme.surfaceCardBorder,
+                                width: isThisPlaying ? 2.0 : 1.0,
                               ),
+                              boxShadow: isThisPlaying
+                                  ? [
+                                      BoxShadow(
+                                        color: WalkieTheme.primaryAmber.withValues(alpha: 0.35),
+                                        blurRadius: 16,
+                                        spreadRadius: 2,
+                                      ),
+                                    ]
+                                  : null,
                             ),
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  radius: 18,
-                                  backgroundColor: isMe
-                                      ? WalkieTheme.primaryAmber.withValues(alpha: 0.2)
-                                      : WalkieTheme.surfaceLowest,
-                                  child: Text(
-                                    tx.displayName.isNotEmpty
-                                        ? tx.displayName.substring(0, 1).toUpperCase()
-                                        : '?',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: isMe
-                                          ? WalkieTheme.primaryAmber
-                                          : WalkieTheme.textPrimary,
-                                    ),
-                                  ),
+                                  radius: 20,
+                                  backgroundColor: isThisPlaying
+                                      ? WalkieTheme.primaryAmber
+                                      : (isMe
+                                          ? WalkieTheme.primaryAmber.withValues(alpha: 0.2)
+                                          : WalkieTheme.surfaceLowest),
+                                  child: isThisPlaying
+                                      ? const Icon(Icons.volume_up_rounded, color: Colors.black, size: 20)
+                                      : Text(
+                                          tx.displayName.isNotEmpty
+                                              ? tx.displayName.substring(0, 1).toUpperCase()
+                                              : '?',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: isMe
+                                                ? WalkieTheme.primaryAmber
+                                                : WalkieTheme.textPrimary,
+                                          ),
+                                        ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -973,24 +1129,59 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                                               isMe ? '${tx.displayName} (You)' : tx.displayName,
                                               overflow: TextOverflow.ellipsis,
                                               maxLines: 1,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 13,
-                                                color: WalkieTheme.textPrimary,
+                                                color: isThisPlaying
+                                                    ? WalkieTheme.primaryAmber
+                                                    : WalkieTheme.textPrimary,
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '• ${tx.timeAgo}',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: WalkieTheme.textTertiary,
+                                          if (isThisPlaying) ...[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: WalkieTheme.primaryAmber,
+                                                borderRadius: BorderRadius.circular(6),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: WalkieTheme.primaryAmber.withValues(alpha: 0.4),
+                                                    blurRadius: 6,
+                                                    spreadRadius: 1,
+                                                  ),
+                                                ],
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.graphic_eq_rounded, size: 12, color: Colors.black),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'PLAYING',
+                                                    style: TextStyle(
+                                                      color: Colors.black,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 10,
+                                                      fontFamily: 'monospace',
+                                                      letterSpacing: 1.0,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
+                                          ] else ...[
+                                            Text(
+                                              '• ${tx.timeAgo}',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: WalkieTheme.textTertiary,
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
-                                      const SizedBox(height: 3),
+                                      const SizedBox(height: 4),
                                       Wrap(
                                         crossAxisAlignment: WrapCrossAlignment.center,
                                         spacing: 8,
@@ -1030,28 +1221,42 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                                     ],
                                   ),
                                 ),
+                                const SizedBox(width: 8),
                                 IconButton(
                                   icon: isThisPlaying
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
+                                      ? Container(
+                                          width: 36,
+                                          height: 36,
+                                          decoration: BoxDecoration(
                                             color: WalkieTheme.primaryAmber,
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: WalkieTheme.primaryAmber.withValues(alpha: 0.6),
+                                                blurRadius: 10,
+                                                spreadRadius: 2,
+                                              ),
+                                            ],
+                                          ),
+                                          child: const Icon(
+                                            Icons.stop_rounded,
+                                            color: Colors.black,
+                                            size: 22,
                                           ),
                                         )
-                                      : const Icon(
+                                      : Icon(
                                           Icons.play_circle_fill_rounded,
-                                          color: WalkieTheme.primaryAmber,
-                                          size: 32,
+                                          color: isPlayingAny ? WalkieTheme.textTertiary : WalkieTheme.primaryAmber,
+                                          size: 36,
                                         ),
-                                  tooltip: 'Replay audio',
-                                  onPressed: isPlaying
-                                      ? null
-                                      : () async {
-                                          await _wsService?.replayTransmission(tx);
-                                          setSheetState(() {});
-                                        },
+                                  tooltip: isThisPlaying ? 'Stop playback' : 'Replay audio',
+                                  onPressed: () {
+                                    if (isThisPlaying) {
+                                      _wsService?.stopReplay();
+                                    } else {
+                                      _wsService?.replayTransmission(tx);
+                                    }
+                                  },
                                 ),
                               ],
                             ),

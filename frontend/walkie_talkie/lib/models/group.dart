@@ -32,4 +32,20 @@ class Group {
       'created_at': createdAt,
     };
   }
+
+  Group copyWith({
+    String? id,
+    String? name,
+    String? joinToken,
+    int? memberCount,
+    String? createdAt,
+  }) {
+    return Group(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      joinToken: joinToken ?? this.joinToken,
+      memberCount: memberCount ?? this.memberCount,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }

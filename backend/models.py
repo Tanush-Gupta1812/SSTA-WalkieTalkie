@@ -34,3 +34,14 @@ class DeleteGroupResponse(BaseModel):
     status: str
     group_id: str
     message: str = "Group deleted successfully"
+
+class RenameGroupRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="New group name")
+
+class UpdateUserRequest(BaseModel):
+    display_name: str = Field(..., min_length=1, max_length=50, description="New display name")
+
+class UpdateUserResponse(BaseModel):
+    status: str = "success"
+    user_id: str
+    display_name: str

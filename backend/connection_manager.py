@@ -160,5 +160,30 @@ class ConnectionManager:
         except Exception as e:
             logger.warning(f"Failed to send initial state to {user_id}: {e}")
 
+    async def update_user_name(self, user_id: str, new_display_name: str):
+        """
+        Updates cached display name and broadcasts user_updated to all active groups
+        where this user is connected.
+        """
+        self.user_names[user_id] = new_display_name
+        for group_id, connections in list(self.active_connections.items()):
+            if user_id in connections:
+                await self.broadcast_json(group_id, {
+                    "type": "user_updated",
+                    "user_id": user_id,
+                    "display_name": new_display_name
+                })
+
+    async def broadcast_group_renamed(self, group_id: str, new_name: str):
+        """
+        Notifies all connected sockets in group_id that the channel has been renamed.
+        """
+        await self.broadcast_json(group_id, {
+            "type": "group_renamed",
+            "group_id": group_id,
+            "name": new_name
+        })
+
 # Global instance
 manager = ConnectionManager()
+
