@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -22,7 +23,7 @@ class GroupTalkScreen extends StatefulWidget {
 }
 
 class _GroupTalkScreenState extends State<GroupTalkScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   WebSocketService? _wsService;
   String _userId = '';
   String _displayName = '';
@@ -31,6 +32,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  late AnimationController _waveController;
 
   @override
   void initState() {
@@ -40,6 +42,11 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
+
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
 
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
@@ -90,6 +97,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
   @override
   void dispose() {
     _pulseController.dispose();
+    _waveController.dispose();
     _wsService?.removeListener(_onWsUpdate);
     // Note: Do NOT dispose _wsService or ForegroundManager here!
     // ActiveChannelSession maintains the persistent audio session across pages
@@ -489,7 +497,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // 1. Connection status warning banner
+            // 1. Connection status warning banner (if offline)
             if (!isConnected)
               Container(
                 width: double.infinity,
@@ -507,7 +515,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      isConnecting ? 'Connecting to channel...' : 'Disconnected. Reconnecting...',
+                      isConnecting ? 'Connecting to frequency...' : 'Disconnected. Reconnecting...',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -518,149 +526,172 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                 ),
               ),
 
-            // 2. Active Channel Members List Row
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: WalkieTheme.surfaceCard,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'MEMBERS IN FREQUENCY',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      letterSpacing: 1.5,
-                      color: WalkieTheme.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 52,
-                    child: _wsService!.members.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'You are the only member connected',
-                              style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
-                            ),
-                          )
-                        : ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _wsService!.members.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 12),
-                            itemBuilder: (ctx, idx) {
-                              final member = _wsService!.members[idx];
-                              final isUserSpeaking =
-                                  _wsService!.activeSpeakerIds.contains(member.userId);
+            // 2. Tactical Frequency & Hardware Telemetry Sub-header
+            _buildFrequencySubHeader(),
 
-                              return _buildMemberBadge(member, isUserSpeaking);
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            ),
+            // 3. Squad Frequency Members Card
+            _buildSquadPresenceCard(isTransmitting),
 
-            const Spacer(),
-
-            // 3. Status readout display
+            // 4. Center Tactical Audio LCD HUD (Compact Telemetry & Spectrum Display)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                children: [
-                  if (isTransmitting) ...[
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.mic, color: WalkieTheme.primaryAmber, size: 20),
-                        SizedBox(width: 6),
-                        Text(
-                          'TRANSMITTING...',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2,
-                            color: WalkieTheme.primaryAmber,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      otherSpeakers.isNotEmpty
-                          ? 'Also transmitting with ${otherSpeakers.join(", ")}'
-                          : 'Release button to stop transmission',
-                      style: const TextStyle(fontSize: 13, color: WalkieTheme.textSecondary),
-                    ),
-                  ] else if (otherSpeakers.isNotEmpty) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.volume_up, color: WalkieTheme.readyEmerald, size: 20),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            otherSpeakers.length == 1
-                                ? '${otherSpeakers.first.toUpperCase()} IS SPEAKING'
-                                : '${otherSpeakers.join(", ").toUpperCase()} ARE SPEAKING',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
-                              color: WalkieTheme.readyEmerald,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Multi-talk active • Hold button to join & speak',
-                      style: TextStyle(fontSize: 13, color: WalkieTheme.readyEmerald),
-                    ),
-                  ] else ...[
-                    const Text(
-                      'READY',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                        color: WalkieTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Press and hold to transmit voice',
-                      style: TextStyle(fontSize: 13, color: WalkieTheme.textTertiary),
-                    ),
-                  ],
-                ],
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+              child: _buildTacticalAudioHud(isTransmitting, otherSpeakers),
+            ),
+
+            // 5. Heavy-Duty Tactical Push-To-Talk Button (Expanded thumb zone)
+            Expanded(
+              child: Center(
+                child: _buildPttButton(isTransmitting, otherSpeakers, isConnected),
               ),
             ),
 
-            if (_wsService!.echoMode)
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: WalkieTheme.primaryAmber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: WalkieTheme.primaryAmber.withValues(alpha: 0.5)),
+            // 6. Bottom Tactical Utility Controls Dock
+            _buildBottomUtilityDock(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tactical Frequency & Comms Specs Sub-header
+  Widget _buildFrequencySubHeader() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: WalkieTheme.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: WalkieTheme.surfaceCardBorder),
+      ),
+      child: Row(
+        children: [
+          // Tap to copy frequency code
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: widget.group.joinToken));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 1),
+                  content: Text('Copied Frequency Code "${widget.group.joinToken}" to clipboard'),
                 ),
+              );
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.tag_rounded, size: 14, color: WalkieTheme.primaryAmber),
+                const SizedBox(width: 4),
+                Text(
+                  'FREQ: ${widget.group.joinToken}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                    color: WalkieTheme.primaryAmber,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.copy_rounded, size: 10, color: WalkieTheme.textTertiary),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Mode Pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: WalkieTheme.readyEmerald.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: WalkieTheme.readyEmerald.withValues(alpha: 0.4)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.volume_up_rounded, size: 10, color: WalkieTheme.readyEmerald),
+                SizedBox(width: 4),
+                Text(
+                  'SPEAKERPHONE ON',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                    color: WalkieTheme.readyEmerald,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Squad Presence Card (Shows operators in frequency or quick squad invite button)
+  Widget _buildSquadPresenceCard(bool isTransmitting) {
+    final members = _wsService!.members;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WalkieTheme.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: WalkieTheme.surfaceCardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'SQUAD COMMS FREQUENCY',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  color: WalkieTheme.textTertiary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: WalkieTheme.readyEmerald.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${members.where((m) => m.isOnline).length} ONLINE',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                    color: WalkieTheme.readyEmerald,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Quick share QR shortcut
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => QrShareScreen(group: widget.group),
+                    ),
+                  );
+                },
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.repeat_rounded, size: 14, color: WalkieTheme.primaryAmber),
-                    SizedBox(width: 6),
+                    Icon(Icons.qr_code_rounded, size: 14, color: WalkieTheme.primaryAmber),
+                    SizedBox(width: 4),
                     Text(
-                      'ECHO TEST ACTIVE (Hearing Yourself)',
+                      'INVITE',
                       style: TextStyle(
+                        fontSize: 10,
                         fontFamily: 'monospace',
-                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: WalkieTheme.primaryAmber,
                       ),
@@ -668,182 +699,497 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                   ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 48,
+            child: members.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Connecting to squad radio network...',
+                      style: TextStyle(fontSize: 12, color: WalkieTheme.textTertiary),
+                    ),
+                  )
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: members.length + (members.length <= 1 ? 1 : 0),
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
+                    itemBuilder: (ctx, idx) {
+                      if (idx == members.length && members.length <= 1) {
+                        // Helpful Quick Invite squad pill so screen never feels deserted
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => QrShareScreen(group: widget.group),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: WalkieTheme.surfaceCardElevated,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: WalkieTheme.primaryAmber.withValues(alpha: 0.4),
+                                style: BorderStyle.solid,
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.group_add_rounded, size: 16, color: WalkieTheme.primaryAmber),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Invite Squad Member',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: WalkieTheme.primaryAmber,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
 
-            const SizedBox(height: 12),
+                      final member = members[idx];
+                      final isMemberSpeaking =
+                          _wsService!.activeSpeakerIds.contains(member.userId);
+                      return _buildMemberBadge(member, isMemberSpeaking);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            // 4. Large Push-To-Talk Button (Instant 0ms hardware touch reaction via Listener)
-            Center(
-              child: Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: (_) {
-                  if (isConnected && _wsService!.isPoweredOn) {
-                    HapticFeedback.heavyImpact();
-                    _wsService!.startPTT();
-                  } else {
-                    HapticFeedback.vibrate();
-                  }
-                },
-                onPointerUp: (_) {
-                  HapticFeedback.lightImpact();
-                  _wsService!.stopPTT();
-                },
-                onPointerCancel: (_) {
-                  _wsService!.stopPTT();
-                },
-                child: AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    final scale = isTransmitting
-                        ? (1.0 + (_wsService!.micLevel * 0.15) + (_pulseAnimation.value - 1.0))
-                        : 1.0;
-                    return Transform.scale(
-                      scale: scale,
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    width: 190,
-                    height: 190,
+  /// Center Tactical Cyberpunk Audio LCD HUD (Spacious & Prominent)
+  Widget _buildTacticalAudioHud(bool isTransmitting, List<String> otherSpeakers) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D0F12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isTransmitting
+              ? WalkieTheme.primaryAmber.withValues(alpha: 0.65)
+              : (otherSpeakers.isNotEmpty
+                  ? WalkieTheme.readyEmerald.withValues(alpha: 0.65)
+                  : WalkieTheme.surfaceCardBorder),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isTransmitting
+                ? WalkieTheme.primaryAmber.withValues(alpha: 0.15)
+                : (otherSpeakers.isNotEmpty
+                    ? WalkieTheme.readyEmerald.withValues(alpha: 0.15)
+                    : Colors.black.withValues(alpha: 0.3)),
+            blurRadius: 16,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Row 1: LCD Telemetry Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isTransmitting
                           ? WalkieTheme.primaryAmber
-                          : WalkieTheme.surfaceCardElevated,
-                      border: Border.all(
-                        color: isTransmitting
-                            ? WalkieTheme.primaryAmberLight
-                            : (otherSpeakers.isNotEmpty
-                                ? WalkieTheme.readyEmerald.withValues(alpha: 0.8)
-                                : WalkieTheme.surfaceCardBorder),
-                        width: isTransmitting ? 4 : (otherSpeakers.isNotEmpty ? 3 : 2),
-                      ),
+                          : (otherSpeakers.isNotEmpty
+                              ? WalkieTheme.readyEmerald
+                              : WalkieTheme.textTertiary),
                       boxShadow: [
-                        if (isTransmitting)
+                        if (isTransmitting || otherSpeakers.isNotEmpty)
                           BoxShadow(
-                            color: WalkieTheme.primaryAmber.withValues(alpha: 0.45),
-                            blurRadius: 36,
-                            spreadRadius: 8,
-                          ),
-                        if (otherSpeakers.isNotEmpty)
-                          BoxShadow(
-                            color: WalkieTheme.readyEmerald.withValues(alpha: 0.3),
-                            blurRadius: 24,
-                            spreadRadius: 2,
+                            color: (isTransmitting ? WalkieTheme.primaryAmber : WalkieTheme.readyEmerald)
+                                .withValues(alpha: 0.85),
+                            blurRadius: 6,
+                            spreadRadius: 1.5,
                           ),
                       ],
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isTransmitting
-                              ? Icons.mic
-                              : (otherSpeakers.isNotEmpty ? Icons.record_voice_over : Icons.mic_none),
-                          size: 56,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isTransmitting
+                        ? 'TX ACTIVE // 16k PCM DUPLEX'
+                        : (otherSpeakers.isNotEmpty ? 'RX ACTIVE // INCOMING VOICE' : 'RADIO MONITOR // READY'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                      color: isTransmitting
+                          ? WalkieTheme.primaryAmber
+                          : (otherSpeakers.isNotEmpty
+                              ? WalkieTheme.readyEmerald
+                              : WalkieTheme.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'GAIN: ${_wsService!.audioGain}x',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  color: WalkieTheme.textTertiary,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Row 2: Large Animated 75px Audio Frequency Spectrum Analyzer
+          SizedBox(
+            height: 75,
+            child: AnimatedBuilder(
+              animation: _waveController,
+              builder: (context, _) {
+                return CustomPaint(
+                  size: const Size(double.infinity, 75),
+                  painter: _TacticalAudioSpectrumPainter(
+                    progress: _waveController.value,
+                    isTransmitting: isTransmitting,
+                    isReceiving: otherSpeakers.isNotEmpty,
+                    micLevel: _wsService!.micLevel,
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Row 3: Status Readout Banner
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isTransmitting) ...[
+                const Text(
+                  'TRANSMITTING VOICE TO SQUAD',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.4,
+                    color: WalkieTheme.primaryAmber,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Mic Amplitude: ${(_wsService!.micLevel * 100).toInt()}% • Release to end',
+                  style: const TextStyle(fontSize: 11, color: WalkieTheme.textSecondary),
+                ),
+              ] else if (otherSpeakers.isNotEmpty) ...[
+                Text(
+                  '${otherSpeakers.join(", ").toUpperCase()} IS SPEAKING',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.4,
+                    color: WalkieTheme.readyEmerald,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Multi-talk full duplex • Hold button to join talk',
+                  style: TextStyle(fontSize: 11, color: WalkieTheme.readyEmerald),
+                ),
+              ] else ...[
+                const Text(
+                  'FREQUENCY OPEN // STANDBY',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.4,
+                    color: WalkieTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Press and hold the PTT button below to talk',
+                  style: TextStyle(fontSize: 11, color: WalkieTheme.textTertiary),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Heavy-Duty Tactical Push-To-Talk Button
+  Widget _buildPttButton(bool isTransmitting, List<String> otherSpeakers, bool isConnected) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: Center(
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (_) {
+            if (isConnected && _wsService!.isPoweredOn) {
+              HapticFeedback.heavyImpact();
+              _wsService!.startPTT();
+            } else {
+              HapticFeedback.vibrate();
+            }
+          },
+          onPointerUp: (_) {
+            HapticFeedback.lightImpact();
+            _wsService!.stopPTT();
+          },
+          onPointerCancel: (_) {
+            _wsService!.stopPTT();
+          },
+          child: AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              final scale = isTransmitting
+                  ? (1.0 + (_wsService!.micLevel * 0.12) + (_pulseAnimation.value - 1.0) * 0.5)
+                  : 1.0;
+              return Transform.scale(
+                scale: scale,
+                child: child,
+              );
+            },
+            child: Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF16181C),
+                border: Border.all(
+                  color: isTransmitting
+                      ? WalkieTheme.primaryAmberLight
+                      : (otherSpeakers.isNotEmpty
+                          ? WalkieTheme.readyEmerald
+                          : WalkieTheme.surfaceCardBorder),
+                  width: isTransmitting ? 4 : 2.5,
+                ),
+                boxShadow: [
+                  if (isTransmitting)
+                    BoxShadow(
+                      color: WalkieTheme.primaryAmber.withValues(alpha: 0.5),
+                      blurRadius: 44,
+                      spreadRadius: 10,
+                    ),
+                  if (otherSpeakers.isNotEmpty)
+                    BoxShadow(
+                      color: WalkieTheme.readyEmerald.withValues(alpha: 0.35),
+                      blurRadius: 32,
+                      spreadRadius: 6,
+                    ),
+                ],
+              ),
+              child: Center(
+                // Inner Tactile Ring
+                child: Container(
+                  width: 205,
+                  height: 205,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isTransmitting
+                        ? WalkieTheme.primaryAmber
+                        : (otherSpeakers.isNotEmpty
+                            ? WalkieTheme.surfaceCardElevated
+                            : WalkieTheme.surfaceCard),
+                    border: Border.all(
+                      color: isTransmitting
+                          ? WalkieTheme.primaryAmberLight
+                          : WalkieTheme.surfaceCardBorder,
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        isTransmitting
+                            ? Icons.mic_rounded
+                            : (otherSpeakers.isNotEmpty ? Icons.record_voice_over_rounded : Icons.mic_none_rounded),
+                        size: 64,
+                        color: isTransmitting
+                            ? const Color(0xFF472A00)
+                            : (otherSpeakers.isNotEmpty
+                                ? WalkieTheme.readyEmerald
+                                : WalkieTheme.textPrimary),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        isTransmitting
+                            ? 'TALKING'
+                            : (otherSpeakers.isNotEmpty ? 'JOIN TALK' : 'HOLD TO TALK'),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2.0,
                           color: isTransmitting
                               ? const Color(0xFF472A00)
                               : (otherSpeakers.isNotEmpty
                                   ? WalkieTheme.readyEmerald
-                                  : WalkieTheme.textPrimary),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          isTransmitting
-                              ? 'TALKING'
-                              : (otherSpeakers.isNotEmpty ? 'JOIN TALK' : 'HOLD TO TALK'),
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
-                            color: isTransmitting
-                                ? const Color(0xFF472A00)
-                                : (otherSpeakers.isNotEmpty
-                                    ? WalkieTheme.readyEmerald
-                                    : WalkieTheme.textSecondary),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Live Audio Transmission & Reception Status
-            if (isTransmitting)
-              Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: WalkieTheme.alertCrimson,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'LIVE STREAMING • ${_wsService!.packetsSent} FRAMES SENT',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.bold,
-                          color: WalkieTheme.primaryAmber,
-                          letterSpacing: 1.0,
+                                  : WalkieTheme.textSecondary),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  // Mic level meter
-                  Container(
-                    width: 140,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: WalkieTheme.surfaceCard,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    alignment: Alignment.centerLeft,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 60),
-                      width: (140 * (_wsService!.micLevel * 3.0).clamp(0.08, 1.0)),
-                      decoration: BoxDecoration(
-                        color: WalkieTheme.primaryAmber,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            else if (otherSpeakers.isNotEmpty)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom Tactical Controls Utility Dock
+  Widget _buildBottomUtilityDock() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: WalkieTheme.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: WalkieTheme.surfaceCardBorder),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          // Audio Gain Booster
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              setState(() {
+                if (_wsService!.audioGain == 2.5) {
+                  _wsService!.audioGain = 3.5;
+                } else if (_wsService!.audioGain == 3.5) {
+                  _wsService!.audioGain = 1.5;
+                } else {
+                  _wsService!.audioGain = 2.5;
+                }
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 1),
+                  content: Text('Audio Booster Gain set to ${_wsService!.audioGain}x'),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.volume_up, size: 16, color: WalkieTheme.readyEmerald),
-                  const SizedBox(width: 6),
+                  const Icon(Icons.volume_up_rounded, size: 20, color: WalkieTheme.primaryAmber),
+                  const SizedBox(height: 2),
                   Text(
-                    'RECEIVING AUDIO • ${_wsService!.packetsReceived} FRAMES',
+                    'GAIN ${_wsService!.audioGain}x',
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.bold,
-                      color: WalkieTheme.readyEmerald,
-                      letterSpacing: 1.0,
+                      color: WalkieTheme.textSecondary,
                     ),
                   ),
                 ],
               ),
-
-            const Spacer(),
-            const SizedBox(height: 20),
-          ],
-        ),
+            ),
+          ),
+          Container(width: 1, height: 24, color: WalkieTheme.surfaceCardBorder),
+          // Echo Loopback Test
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              setState(() {
+                _wsService!.echoMode = !_wsService!.echoMode;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 2),
+                  content: Text(
+                    _wsService!.echoMode
+                        ? 'Echo Test ON: Speak to hear yourself relayed from server.'
+                        : 'Echo Test OFF: Normal squad broadcast.',
+                  ),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _wsService!.echoMode ? Icons.repeat_on_rounded : Icons.repeat_rounded,
+                    size: 20,
+                    color: _wsService!.echoMode ? WalkieTheme.primaryAmber : WalkieTheme.textTertiary,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _wsService!.echoMode ? 'ECHO: ON' : 'ECHO: OFF',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      color: _wsService!.echoMode ? WalkieTheme.primaryAmber : WalkieTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(width: 1, height: 24, color: WalkieTheme.surfaceCardBorder),
+          // Share QR Code
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => QrShareScreen(group: widget.group),
+                ),
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.qr_code_rounded, size: 20, color: WalkieTheme.readyEmerald),
+                  SizedBox(height: 2),
+                  Text(
+                    'SHARE QR',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      color: WalkieTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -858,12 +1204,12 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
       decoration: BoxDecoration(
         color: isUserSpeaking
             ? WalkieTheme.primaryAmber.withValues(alpha: 0.2)
-            : WalkieTheme.surfaceLowest,
+            : WalkieTheme.surfaceCardElevated,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUserSpeaking
               ? WalkieTheme.primaryAmber
-              : WalkieTheme.surfaceCardBorder,
+              : (member.isOnline ? WalkieTheme.readyEmerald.withValues(alpha: 0.5) : WalkieTheme.surfaceCardBorder),
           width: isUserSpeaking ? 1.5 : 1,
         ),
       ),
@@ -871,14 +1217,14 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(
-            radius: 14,
+            radius: 13,
             backgroundColor: isUserSpeaking
                 ? WalkieTheme.primaryAmber
-                : WalkieTheme.surfaceCardElevated,
+                : WalkieTheme.surfaceLowest,
             child: Text(
               initials,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: isUserSpeaking ? Colors.black : WalkieTheme.textPrimary,
               ),
@@ -917,7 +1263,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     style: TextStyle(
                       fontSize: 9,
                       fontFamily: 'monospace',
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.bold,
                       color: isUserSpeaking
                           ? WalkieTheme.primaryAmber
                           : (member.isOnline
@@ -934,3 +1280,65 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
     );
   }
 }
+
+/// Custom Canvas Painter that renders animated dynamic audio frequency spectrum bars
+class _TacticalAudioSpectrumPainter extends CustomPainter {
+  final double progress;
+  final bool isTransmitting;
+  final bool isReceiving;
+  final double micLevel;
+
+  _TacticalAudioSpectrumPainter({
+    required this.progress,
+    required this.isTransmitting,
+    required this.isReceiving,
+    required this.micLevel,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const int barCount = 28;
+    final double barWidth = (size.width / barCount) - 3;
+    final double centerY = size.height / 2;
+
+    final Color primaryColor = isTransmitting
+        ? WalkieTheme.primaryAmber
+        : (isReceiving ? WalkieTheme.readyEmerald : WalkieTheme.readyEmerald.withValues(alpha: 0.4));
+
+    final paint = Paint()
+      ..color = primaryColor
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < barCount; i++) {
+      final double x = i * (barWidth + 3) + barWidth / 2;
+      double heightFactor;
+
+      if (isTransmitting) {
+        // High energetic waveform reacting to microphone level and phase
+        final phase = (progress * 2 * math.pi) + (i * 0.4);
+        final dynamicBoost = (micLevel * 1.5).clamp(0.1, 1.0);
+        heightFactor = (0.2 + (0.8 * (math.sin(phase).abs())) * dynamicBoost);
+      } else if (isReceiving) {
+        // Rhythmic pulsing incoming voice waveform
+        final phase = (progress * 2 * math.pi) + (i * 0.35);
+        heightFactor = 0.25 + 0.7 * math.sin(phase).abs();
+      } else {
+        // Calm breathing idle radar waveform
+        final phase = (progress * 2 * math.pi) + (i * 0.2);
+        heightFactor = 0.08 + 0.12 * math.sin(phase).abs();
+      }
+
+      final double barHeight = (size.height * heightFactor).clamp(4.0, size.height);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, centerY), width: barWidth, height: barHeight),
+        const Radius.circular(2),
+      );
+      canvas.drawRRect(rect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TacticalAudioSpectrumPainter oldDelegate) => true;
+}
+
