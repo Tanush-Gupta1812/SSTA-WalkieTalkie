@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
 import '../theme.dart';
@@ -12,17 +13,93 @@ class JoinQrScreen extends StatefulWidget {
   State<JoinQrScreen> createState() => _JoinQrScreenState();
 }
 
-class _JoinQrScreenState extends State<JoinQrScreen> {
+class _JoinQrScreenState extends State<JoinQrScreen> with WidgetsBindingObserver {
   final TextEditingController _codeController = TextEditingController();
-  final MobileScannerController _scannerController = MobileScannerController();
+  late final MobileScannerController _scannerController;
+
   bool _isJoining = false;
   bool _scanned = false;
+  bool _hasPermission = true;
+  bool _isCameraStarting = false;
+  String? _cameraErrorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    _scannerController = MobileScannerController(
+      autoStart: false, // Start manually after lifecycle & permissions are ready
+      formats: const [BarcodeFormat.qrCode],
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startCamera();
+    });
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _codeController.dispose();
     _scannerController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startCamera();
+    } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _scannerController.stop();
+    }
+  }
+
+  Future<void> _startCamera() async {
+    if (_isCameraStarting || !mounted) return;
+
+    setState(() {
+      _isCameraStarting = true;
+      _cameraErrorMessage = null;
+    });
+
+    try {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          setState(() {
+            _hasPermission = false;
+            _isCameraStarting = false;
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() => _hasPermission = true);
+      }
+
+      // Stop first to reset any internal controller error state (e.g. permissionDenied)
+      await _scannerController.stop();
+      await Future.delayed(const Duration(milliseconds: 150));
+
+      if (mounted) {
+        await _scannerController.start();
+      }
+    } catch (e) {
+      debugPrint('Error starting camera: $e');
+      if (mounted) {
+        setState(() {
+          _cameraErrorMessage = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCameraStarting = false);
+      }
+    }
   }
 
   Future<void> _joinWithToken(String token) async {
@@ -85,11 +162,18 @@ class _JoinQrScreenState extends State<JoinQrScreen> {
         title: const Text('Join Channel'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Reload Camera',
+            onPressed: _startCamera,
+          ),
+          IconButton(
             icon: const Icon(Icons.flash_on),
+            tooltip: 'Toggle Flash',
             onPressed: () => _scannerController.toggleTorch(),
           ),
           IconButton(
             icon: const Icon(Icons.flip_camera_ios),
+            tooltip: 'Switch Camera',
             onPressed: () => _scannerController.switchCamera(),
           ),
         ],
@@ -116,48 +200,55 @@ class _JoinQrScreenState extends State<JoinQrScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: WalkieTheme.surfaceCardBorder, width: 2),
+                  color: Colors.black,
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    MobileScanner(
-                      controller: _scannerController,
-                      onDetect: (capture) {
-                        if (_scanned || _isJoining) return;
-                        final List<Barcode> barcodes = capture.barcodes;
-                        for (final barcode in barcodes) {
-                          if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-                            _scanned = true;
-                            _joinWithToken(barcode.rawValue!);
-                            break;
-                          }
-                        }
-                      },
-                    ),
-                    // Scanner target overlay
-                    Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: WalkieTheme.primaryAmber.withValues(alpha: 0.8),
-                          width: 2,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    if (_isJoining)
-                      Container(
-                        color: Colors.black54,
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            color: WalkieTheme.primaryAmber,
+                child: !_hasPermission
+                    ? _buildPermissionDeniedView()
+                    : _cameraErrorMessage != null
+                        ? _buildErrorView(message: _cameraErrorMessage)
+                        : Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          MobileScanner(
+                            controller: _scannerController,
+                            onDetect: (capture) {
+                              if (_scanned || _isJoining) return;
+                              final List<Barcode> barcodes = capture.barcodes;
+                              for (final barcode in barcodes) {
+                                if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+                                  _scanned = true;
+                                  _joinWithToken(barcode.rawValue!);
+                                  break;
+                                }
+                              }
+                            },
+                            placeholderBuilder: (context, child) => _buildPlaceholderView(),
+                            errorBuilder: (context, error, child) => _buildErrorView(error: error),
                           ),
-                        ),
+                          // Scanner target overlay
+                          Container(
+                            width: 200,
+                            height: 200,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: WalkieTheme.primaryAmber.withValues(alpha: 0.8),
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          if (_isJoining)
+                            Container(
+                              color: Colors.black54,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: WalkieTheme.primaryAmber,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
               ),
 
               const SizedBox(height: 24),
@@ -231,6 +322,137 @@ class _JoinQrScreenState extends State<JoinQrScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderView() {
+    return Container(
+      color: WalkieTheme.surfaceCard,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(
+              color: WalkieTheme.primaryAmber,
+              strokeWidth: 2.5,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _isCameraStarting ? 'Initializing camera...' : 'Connecting camera preview...',
+              style: const TextStyle(
+                color: WalkieTheme.textSecondary,
+                fontSize: 13,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView({MobileScannerException? error, String? message}) {
+    final displayMsg = message ?? error?.errorDetails?.message ?? error?.errorCode.name ?? 'Unknown error';
+    return Container(
+      color: WalkieTheme.surfaceCard,
+      padding: const EdgeInsets.all(20),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.videocam_off_rounded,
+              color: WalkieTheme.alertCrimson,
+              size: 40,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Camera failed to load',
+              style: TextStyle(
+                color: WalkieTheme.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              displayMsg,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: WalkieTheme.textTertiary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: WalkieTheme.primaryAmber,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              ),
+              onPressed: _startCamera,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Retry Camera'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPermissionDeniedView() {
+    return Container(
+      color: WalkieTheme.surfaceCard,
+      padding: const EdgeInsets.all(20),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.camera_alt_outlined,
+              color: WalkieTheme.alertCrimson,
+              size: 44,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Camera Access Required',
+              style: TextStyle(
+                color: WalkieTheme.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please grant camera permission to scan channel QR codes.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: WalkieTheme.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton(
+                  onPressed: _startCamera,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: WalkieTheme.primaryAmber),
+                  ),
+                  child: const Text('Request Again', style: TextStyle(color: WalkieTheme.primaryAmber)),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: openAppSettings,
+                  child: const Text('Open Settings'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
