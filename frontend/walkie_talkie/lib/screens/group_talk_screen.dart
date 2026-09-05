@@ -338,6 +338,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
               onTap: () {
                 _wsService!.togglePower();
                 if (_wsService!.isPoweredOn) {
+                  UserService.saveActiveGroup(widget.group);
                   ForegroundManager.start(
                     channelName: widget.group.name,
                     userName: _displayName,
@@ -349,6 +350,7 @@ class _GroupTalkScreenState extends State<GroupTalkScreen>
                     ),
                   );
                 } else {
+                  UserService.clearActiveGroup();
                   ForegroundManager.stop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(

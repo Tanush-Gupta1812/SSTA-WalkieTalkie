@@ -25,9 +25,10 @@ class ForegroundManager {
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
         eventAction: ForegroundTaskEventAction.nothing(),
-        autoRunOnBoot: false,
-        allowWakeLock: true,
-        allowWifiLock: true,
+        autoRunOnBoot: true,
+        autoRunOnMyPackageReplaced: true,
+        allowWakeLock: false,
+        allowWifiLock: false,
       ),
     );
   }

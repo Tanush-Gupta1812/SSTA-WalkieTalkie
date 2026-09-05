@@ -8,6 +8,7 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import '../config.dart';
 import '../models/member.dart';
 import '../utils/radio_sound_effects.dart';
+import 'native_audio_control.dart';
 
 enum ConnectionStatus { disconnected, connecting, connected }
 
@@ -164,6 +165,8 @@ class WebSocketService extends ChangeNotifier {
       );
       await FlutterPcmSound.setLogLevel(LogLevel.none);
       _soundInitialized = true;
+      // Configure communication routing and ensure audible volume even in silent mode
+      await NativeAudioControl.ensureAudible();
     } catch (e) {
       debugPrint('Error initializing FlutterPcmSound: $e');
     }
@@ -175,7 +178,7 @@ class WebSocketService extends ChangeNotifier {
 
   void togglePower() {
     if (_isPoweredOn) {
-      // Power OFF -> Disconnect WS, release PTT, clear queues
+      // Power OFF -> Disconnect WS, release PTT, release audio engine and wake lock
       _isPoweredOn = false;
       if (_isSpeaking) {
         stopPTT();
@@ -188,10 +191,21 @@ class WebSocketService extends ChangeNotifier {
       _status = ConnectionStatus.disconnected;
       _activeSpeakerIds.clear();
       _activeSpeakerNames.clear();
+
+      // Release hardware audio track and locks for maximum battery savings
+      if (_soundInitialized) {
+        FlutterPcmSound.release();
+        _soundInitialized = false;
+      }
+      NativeAudioControl.releaseTransmissionWakeLock();
+      NativeAudioControl.setCommunicationMode(false);
+
       notifyListeners();
     } else {
       // Power ON -> Connect WS, resume listening
       _isPoweredOn = true;
+      _initAudioPlayer();
+      NativeAudioControl.setCommunicationMode(true);
       connect();
     }
   }
@@ -326,6 +340,9 @@ class WebSocketService extends ChangeNotifier {
         if (uId == userId) {
           _isSpeaking = true;
         } else {
+          // Ensure speaker volume is unmuted even in silent mode & acquire wake lock for speech
+          NativeAudioControl.ensureAudible();
+          NativeAudioControl.acquireTransmissionWakeLock();
           // Play classic walkie-talkie opening chirp before incoming voice begins
           playStartChirp();
         }
@@ -339,6 +356,8 @@ class WebSocketService extends ChangeNotifier {
         if (uId == userId) {
           _isSpeaking = false;
         } else {
+          // Release wake lock as soon as incoming speech stops
+          NativeAudioControl.releaseTransmissionWakeLock();
           // Play classic walkie-talkie roger beep + squelch tail when incoming transmission ends
           playEndRogerBeep();
         }
@@ -390,7 +409,6 @@ class WebSocketService extends ChangeNotifier {
     if (!_soundInitialized || pcmBytes.isEmpty || !_isPoweredOn) return;
     try {
       _packetsReceived++;
-      notifyListeners();
 
       // Apply software digital gain to 16-bit PCM samples to boost volume
       final amplified = Uint8List(pcmBytes.length);
@@ -473,6 +491,7 @@ class WebSocketService extends ChangeNotifier {
         'type': 'ptt_start',
         'echo': _echoMode,
       }));
+      NativeAudioControl.acquireTransmissionWakeLock();
       _isSpeaking = true;
       _packetsSent = 0;
       _micLevel = 0.0;
@@ -539,6 +558,7 @@ class WebSocketService extends ChangeNotifier {
   /// Stop mic recording and release Push-to-Talk lock
   Future<void> stopPTT() async {
     _wantsToSpeak = false;
+    NativeAudioControl.releaseTransmissionWakeLock();
     if (!_isSpeaking && !_isPttStarting) {
       notifyListeners();
       return;
@@ -581,6 +601,7 @@ class WebSocketService extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _reconnectTimer?.cancel();
+    NativeAudioControl.releaseTransmissionWakeLock();
     _stopRecording();
     _audioRecorder.dispose();
     _channelSub?.cancel();

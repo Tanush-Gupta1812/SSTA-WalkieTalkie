@@ -4,11 +4,13 @@ import 'theme.dart';
 
 import 'config.dart';
 import 'services/foreground_manager.dart';
+import 'services/active_channel_session.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppConfig.loadCache();
   ForegroundManager.init();
+  await ActiveChannelSession.instance.restoreLastSessionIfNeeded();
   runApp(const WalkieApp());
 }
 

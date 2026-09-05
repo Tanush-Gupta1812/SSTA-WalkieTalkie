@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import '../models/group.dart';
 import '../services/websocket_service.dart';
 import '../services/foreground_manager.dart';
+import '../services/user_service.dart';
+import '../services/native_audio_control.dart';
 
 /// Singleton manager that holds the active walkie-talkie channel session
 /// so it remains connected and transmitting/receiving even when the user
@@ -47,6 +49,12 @@ class ActiveChannelSession extends ChangeNotifier {
 
     _wsService!.addListener(_onWsUpdate);
 
+    // Persist session state so Android can restore connection if killed
+    UserService.saveActiveGroup(group);
+
+    // Configure native communication audio mode (speakerphone + silent mode override)
+    NativeAudioControl.setCommunicationMode(true);
+
     ForegroundManager.start(
       channelName: group.name,
       userName: displayName,
@@ -69,6 +77,7 @@ class ActiveChannelSession extends ChangeNotifier {
   void updateGroupName(String groupId, String newName) {
     if (_activeGroup?.id == groupId) {
       _activeGroup = _activeGroup!.copyWith(name: newName);
+      UserService.saveActiveGroup(_activeGroup!);
       ForegroundManager.start(
         channelName: newName,
       );
@@ -84,13 +93,42 @@ class ActiveChannelSession extends ChangeNotifier {
     }
   }
 
-  /// Explicitly disconnect and terminate session (e.g. when powered off or left)
+  /// Explicitly disconnect and terminate session (e.g. when powered off, left, or deleted)
   void disconnect() {
     _wsService?.removeListener(_onWsUpdate);
     _wsService?.dispose();
     _wsService = null;
     _activeGroup = null;
+    UserService.clearActiveGroup();
+    NativeAudioControl.setCommunicationMode(false);
     ForegroundManager.stop();
     notifyListeners();
+  }
+
+  /// Automatically restore connection to the last active channel if the app was killed while connected
+  Future<void> restoreLastSessionIfNeeded() async {
+    try {
+      final wasActive = await UserService.isSessionActive();
+      if (!wasActive) {
+        // Explicitly stopped or disconnected previously — ensure foreground service is off
+        await ForegroundManager.stop();
+        return;
+      }
+
+      final lastGroup = await UserService.getLastConnectedGroup();
+      if (lastGroup == null) return;
+
+      final userId = await UserService.getUserId();
+      final displayName = await UserService.getDisplayName();
+
+      debugPrint('Restoring background session for last connected channel: ${lastGroup.name}');
+      getOrCreateSession(
+        group: lastGroup,
+        userId: userId,
+        displayName: displayName,
+      );
+    } catch (e) {
+      debugPrint('Error in restoreLastSessionIfNeeded: $e');
+    }
   }
 }
